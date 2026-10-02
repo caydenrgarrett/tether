@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tether"
+version = "0.1.0"
+description = "Versioned, sandboxed, forkable file workspaces for AI agents, with per-agent permissions and a tamper-evident audit log."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+[project.scripts]
+tether = "tether.cli:main"
+
+[tool.setuptools]
+packages = ["tether"]

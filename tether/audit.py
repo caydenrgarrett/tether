@@ -55,6 +55,7 @@ class AuditLog:
                 f.write(secrets.token_bytes(32))
         self._key = self.key_path.read_bytes()
         self.path.touch(exist_ok=True)
+        self.listener = None  # called with each new entry (e.g. to send notifications)
 
     def _mac(self, entry: dict) -> str:
         return hmac.new(self._key, _canonical(entry), hashlib.sha256).hexdigest()
@@ -94,6 +95,11 @@ class AuditLog:
                 os.fsync(f.fileno())
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
+        if self.listener:
+            try:
+                self.listener(entry)
+            except Exception:
+                pass
         return entry
 
     def entries(self, **filters) -> list[dict]:

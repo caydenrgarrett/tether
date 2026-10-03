@@ -18,12 +18,14 @@ Errors are JSON ``{"error": ..., "code": ...}`` with codes ``unauthorized``
 (401), ``denied`` / ``guardrail`` (403), ``not_found`` (404),
 ``closed`` (409), ``too_large`` (413), ``bad_request`` (400).
 
-Put TLS in front of it (a reverse proxy) before exposing it beyond localhost.
+Serve HTTPS with --tls-cert/--tls-key, or put a TLS reverse proxy in front,
+before exposing it beyond localhost.
 """
 
 from __future__ import annotations
 
 import json
+import ssl
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
@@ -142,9 +144,14 @@ def make_handler(root: str, max_body: int):
     return Handler
 
 
-def make_server(root: str, host: str = "127.0.0.1", port: int = 8701,
-                max_body: int = DEFAULT_MAX_BODY) -> ThreadingHTTPServer:
+def make_server(root: str, host: str = "127.0.0.1", port: int = 8701, max_body: int = DEFAULT_MAX_BODY,
+                certfile: str | None = None, keyfile: str | None = None) -> ThreadingHTTPServer:
     Repo(root)  # fail fast if this isn't a repository
     server = ThreadingHTTPServer((host, port), make_handler(root, max_body))
     server.daemon_threads = True
+    if certfile:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.load_cert_chain(certfile, keyfile)
+        server.socket = ctx.wrap_socket(server.socket, server_side=True)
     return server

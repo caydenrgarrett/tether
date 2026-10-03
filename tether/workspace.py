@@ -23,6 +23,8 @@ from pathlib import Path
 
 from .audit import AuditLog, now
 from .guardrails import find_secrets
+from .merge3 import merge_text
+from .notify import Notifier
 from .policy import LEVELS, Policy, effective_access
 from .store import (
     META_DIR,
@@ -107,6 +109,8 @@ class Repo:
         # TETHER_AUDIT_KEY_FILE at it (default: inside .tether/ for local use).
         key = os.environ.get("TETHER_AUDIT_KEY_FILE") or self.meta / "audit.key"
         self.audit = AuditLog(self.meta / "audit.log", Path(key))
+        self.notifier = Notifier(self.meta)
+        self.audit.listener = self.notifier.dispatch
         self._lock_depth = 0
 
     # -- setup -------------------------------------------------------------
@@ -312,7 +316,22 @@ class Repo:
             changes = diff_manifests(base, st["manifest"])
             current_v = self.snapshot(reviewer, "pre-merge snapshot")
             current = self.version(current_v)["manifest"]
-            conflicts = [c.path for c in changes if current.get(c.path) != base.get(c.path)]
+            # Files changed on both sides since the fork: identical edits are
+            # fine, text edits to different regions are merged line by line,
+            # and anything else is a conflict.
+            resolved: dict[str, str] = {}
+            conflicts = []
+            for c in changes:
+                theirs = current.get(c.path)
+                if theirs == base.get(c.path) or theirs == c.new:
+                    continue
+                text = None
+                if c.old is not None and c.new is not None and theirs is not None:
+                    text = merge_text(self.objects.get(c.old), self.objects.get(c.new), self.objects.get(theirs))
+                if text is None:
+                    conflicts.append(c.path)
+                else:
+                    resolved[c.path] = self.objects.put(text)
             if conflicts:
                 refuse(MergeConflict(conflicts))
 
@@ -321,7 +340,7 @@ class Repo:
                 if c.new is None:
                     merged.pop(c.path, None)
                 else:
-                    merged[c.path] = c.new
+                    merged[c.path] = resolved.get(c.path, c.new)
             if changes:
                 self._materialize(current, merged)
                 n = self._record_version(merged, reviewer, f"merge {ws_id} ({st['agent']})",
@@ -332,7 +351,8 @@ class Repo:
             ws._save(st)
             self.audit.append("merge", reviewer, workspace=ws_id, agent=st["agent"], outcome="allowed",
                               version=n, changes=[{"status": c.status, "path": c.path} for c in changes],
-                              flags_overridden=len(st["flags"]) if st["flags"] else None)
+                              flags_overridden=len(st["flags"]) if st["flags"] else None,
+                              line_merged=sorted(resolved) or None)
             return n
 
     def auto_approval_blocker(self, ws_id: str) -> str | None:

@@ -294,3 +294,34 @@ class TestCLI(RepoTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLineMerge(RepoTestCase):
+    def test_merge_lines_unit(self):
+        from tether.merge3 import merge_lines
+        base = ["a\n", "b\n", "c\n", "d\n", "e\n"]
+        ours = ["A\n", "b\n", "c\n", "d\n", "e\n"]
+        theirs = ["a\n", "b\n", "c\n", "d\n", "E\n"]
+        self.assertEqual(merge_lines(base, ours, theirs), ["A\n", "b\n", "c\n", "d\n", "E\n"])
+        self.assertIsNone(merge_lines(base, ["X\n", *base[1:]], ["Y\n", *base[1:]]))
+        self.assertEqual(merge_lines(base, ours, ours), ours)
+        self.assertIsNone(merge_lines(base, ["A\n", *base[1:]], ["a\n", "B\n", *base[2:]]))  # adjacent
+
+    def test_non_overlapping_edits_to_same_file_merge(self):
+        (self.root / "reports" / "q1.md").write_text("# Q1\n\nintro\n\n\n\nbody\n\n\n\nfooter\n")
+        self.repo.snapshot("user:alice")
+        ws = self.repo.create_workspace("agent:summarizer", POLICY)
+        ws.write("reports/q1.md", "# Q1 report\n\nintro\n\n\n\nbody\n\n\n\nfooter\n")
+        (self.root / "reports" / "q1.md").write_text("# Q1\n\nintro\n\n\n\nbody\n\n\n\nfooter (edited)\n")
+        v = self.repo.merge(ws.id, reviewer="user:alice")
+        self.assertEqual((self.root / "reports" / "q1.md").read_text(),
+                         "# Q1 report\n\nintro\n\n\n\nbody\n\n\n\nfooter (edited)\n")
+        merge_entry = [e for e in self.repo.audit.entries() if e["action"] == "merge"][-1]
+        self.assertEqual(merge_entry["line_merged"], ["reports/q1.md"])
+        self.assertEqual(self.repo.version(v)["approved_by"], "user:alice")
+
+    def test_identical_edits_are_not_conflicts(self):
+        ws = self.repo.create_workspace("agent:summarizer", POLICY)
+        ws.write("reports/q1.md", "same\n")
+        (self.root / "reports" / "q1.md").write_text("same\n")
+        self.repo.merge(ws.id, reviewer="user:alice")

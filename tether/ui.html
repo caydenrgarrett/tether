@@ -346,6 +346,29 @@ h1.hero.subject .l2 { font-size: .5em; letter-spacing: -.025em; line-height: 1.2
 .palette-foot { display: flex; justify-content: flex-end; gap: 16px; padding: 10px 18px; border-top: 1px solid var(--hairline); color: var(--faint); font-size: 12px; }
 .palette-foot span { display: inline-flex; gap: 6px; align-items: center; }
 
+/* ---------- account menu & sign-in ---------- */
+.me { cursor: pointer; border: 0; }
+.menu-pop {
+  position: fixed; top: calc(var(--top-h) - 8px + env(safe-area-inset-top, 0px)); right: 28px; z-index: 40; min-width: 220px; padding: 8px;
+  border-radius: 20px; background: var(--glass-strong); backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid var(--hairline); box-shadow: var(--shadow-pop); animation: pop .3s var(--ease) both;
+}
+.menu-who { display: grid; gap: 2px; padding: 10px 12px 12px; border-bottom: 1px solid var(--hairline); margin-bottom: 6px; }
+.menu-who span { color: var(--muted); font-size: 13px; }
+.menu-item { width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px; font-weight: 500; }
+.menu-item:hover { background: var(--hover); }
+body.signed-out .top .nav, body.signed-out .top .right, body.signed-out main, body.signed-out .dock { visibility: hidden; }
+.login { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; }
+.login-card { width: min(440px, 100%); display: grid; gap: 12px; padding: 34px; border-radius: 30px; background: var(--glass-strong);
+  backdrop-filter: blur(30px) saturate(1.4); -webkit-backdrop-filter: blur(30px) saturate(1.4); border: 1px solid var(--hairline); box-shadow: var(--shadow-pop); animation: pop .5s var(--ease) both; }
+.login-card h1.hero { font-size: 40px; margin-bottom: 10px; }
+.login-card h1.hero .l2 { font-size: .6em; letter-spacing: -.03em; margin-top: 6px; }
+.login-card input { height: 50px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--hairline); background: var(--surface); outline: none; font-size: 15px; }
+.login-card input:focus { border-color: var(--ink-2); }
+.login-card .btn { height: 50px; margin-top: 4px; }
+.login-err { margin: 0; min-height: 20px; color: var(--red); font-size: 13.5px; }
+@media (max-width: 720px) { .menu-pop { right: 16px; } .login-card { padding: 26px; } }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
@@ -382,7 +405,8 @@ h1.hero.subject .l2 { font-size: .5em; letter-spacing: -.025em; line-height: 1.2
   .nav { justify-self: center; }
   .tab { padding: 8px 11px; font-size: 13.5px; }
   .tab .count { display: none; }
-  .search-label, .search-kbd, .integrity .label, .me { display: none; }
+  .search-label, .search-kbd, .integrity .label { display: none; }
+  .me { width: 36px; height: 36px; }
   .pill-btn { padding: 0 12px; }
   .ev, .timeline.global .ev { grid-template-columns: 1fr; gap: 2px; padding: 10px 16px; }
   .ev .rail { display: none; }
@@ -421,7 +445,7 @@ h1.hero.subject .l2 { font-size: .5em; letter-spacing: -.025em; line-height: 1.2
   <div class="right">
     <button class="pill-btn" id="open-palette" aria-label="Search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg><span class="search-label">Search</span><kbd class="search-kbd">⌘K</kbd></button>
     <button class="pill-btn integrity" id="integrity" title="Recheck the audit log"><span class="dot"></span><span class="label">Checking log…</span></button>
-    <span class="me" id="me" title=""></span>
+    <button class="me" id="me" title="" aria-label="Account"></button>
   </div>
 </header>
 
@@ -442,12 +466,16 @@ h1.hero.subject .l2 { font-size: .5em; letter-spacing: -.025em; line-height: 1.2
 <main id="view-activity" class="page hidden"></main>
 <div id="dock" class="dock hidden"></div>
 <div id="palette-root"></div>
+<div id="menu-root"></div>
+<div id="login-root"></div>
 <div id="toast-root"></div>
 
 <script>
 "use strict";
 const TOKEN = "__TETHER_TOKEN__";
-const REVIEWER = "__TETHER_REVIEWER__";
+let ME = null;  // { actor, role, csrf, mode } from /api/me
+const ROLE_RANK = { viewer: 0, reviewer: 1, admin: 2 };
+const can = need => !!ME && ROLE_RANK[ME.role] >= ROLE_RANK[need];
 const state = { filter: "open", workspaces: [], selected: null, deniedOnly: false };
 
 // ---- DOM helpers: all data goes through textContent, never innerHTML ----
@@ -503,12 +531,13 @@ function ago(ts) {
 const plural = (n, word) => `${n} ${n === 1 ? word : word.endsWith("y") ? word.slice(0, -1) + "ies" : word + "s"}`;
 
 async function api(path, body) {
-  const opts = body === undefined ? {} : {
-    method: "POST", body: JSON.stringify(body),
-    headers: { "Content-Type": "application/json", "X-Tether-Token": TOKEN },
+  const opts = body === undefined ? { credentials: "same-origin" } : {
+    method: "POST", body: JSON.stringify(body), credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-Tether-Token": (ME && ME.csrf) || TOKEN },
   };
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({ error: res.statusText }));
+  if (res.status === 401 && path !== "/api/login" && path !== "/api/me") { showLogin(); throw new Error("Please sign in again."); }
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
 }
@@ -686,7 +715,12 @@ function flagsNotice(w) {
 function renderDock(w) {
   const dock = document.getElementById("dock");
   if (w.status !== "open") { dock.classList.add("hidden"); return; }
-  const selfReview = REVIEWER === w.agent;
+  if (!can("reviewer")) {
+    mount(dock, el("span", { class: "who-note", style: "display:inline" }, "You have view-only access"));
+    dock.classList.remove("hidden");
+    return;
+  }
+  const selfReview = ME.actor === w.agent;
   const ack = w.flags ? el("input", { type: "checkbox", id: "ack" }) : null;
   const merge = el("button", { class: "btn primary", disabled: selfReview || !!w.flags || !w.files.length }, icon("check"), el("span", {}, "Approve", el("span", { class: "long" }, " & merge")));
   const discard = el("button", { class: "btn ghost" }, "Discard");
@@ -791,10 +825,13 @@ function describe(e, global) {
     fork: "forked the workspace", merge: "merged", discard: "discarded the workspace", rollback: "rolled back",
     snapshot: "recorded a snapshot", init: "started tracking the drive", submit: "submitted for review",
     token: "issued an agent token", revoke: "revoked agent tokens", auto_approve: "skipped auto-approve",
-    auth: "rejected an invalid token", gc: "cleaned up storage" }[e.action] || e.action;
-  const out = [el("span", { class: "who" }, shortAgent(e.actor)), " ", el("b", {}, e.outcome === "denied" ? "tried to " + e.action : verb)];
+    auth: "rejected an invalid token", gc: "cleaned up storage", login: "signed in", user_add: "added a user",
+    user_remove: "removed a user", user_role: "changed a role", user_passwd: "changed a password",
+    notify: "sent a notification" }[e.action] || e.action;
+  const out = [el("span", { class: "who" }, shortAgent(e.actor)), " ", el("b", {}, e.outcome === "denied" ? (e.action === "login" ? "failed to sign in" : "tried to " + e.action) : verb)];
   if (e.path) out.push(" ", el("span", { class: "path" }, e.path));
   if (e.prefix) out.push(" ", el("span", { class: "path" }, e.prefix));
+  if (e.user) out.push(" ", el("span", { class: "path" }, e.user));
   if (e.action === "list" && e.count !== undefined) out.push(` · ${plural(e.count, "file")} visible`);
   if (e.version !== undefined && e.action !== "read") out.push(` → v${e.version}`);
   if (e.bytes !== undefined) out.push(` · ${e.bytes.toLocaleString()} bytes`);
@@ -830,6 +867,7 @@ async function loadHistory() {
     el("div", { class: "card" }, versions.map(v => {
       let action;
       if (v.version === head) action = el("span", { class: "tag open" }, "Current");
+      else if (!can("admin")) action = el("span", {});
       else {
         action = el("button", { class: "btn ghost small" }, "Restore");
         action.addEventListener("click", async () => {
@@ -928,16 +966,68 @@ function openPalette() {
 function closePalette() { palette.open = false; mount(document.getElementById("palette-root")); }
 document.getElementById("open-palette").addEventListener("click", openPalette);
 document.addEventListener("keydown", e => {
+  if (!ME) return;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); palette.open ? closePalette() : openPalette(); }
   else if (e.key === "/" && !palette.open && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); openPalette(); }
 });
 
-const me = document.getElementById("me");
-me.textContent = initials(REVIEWER);
-me.title = "Reviewing as " + REVIEWER;
-loadIntegrity();
-route();
-setInterval(() => { if (!document.hidden) loadIntegrity(); }, 15000);
+// ---- identity ----
+const meBtn = document.getElementById("me");
+function renderMe() {
+  meBtn.textContent = initials(ME.actor);
+  meBtn.title = `${shortAgent(ME.actor)} · ${ME.role}`;
+}
+meBtn.addEventListener("click", () => {
+  const root = document.getElementById("menu-root");
+  if (root.firstChild) return mount(root);
+  const items = [
+    el("div", { class: "menu-who" }, el("b", {}, shortAgent(ME.actor)), el("span", {}, ME.mode === "local" ? "Local mode · full access" : `Role: ${ME.role}`)),
+  ];
+  if (ME.mode === "team") items.push(el("button", { class: "menu-item", onclick: async () => {
+    try { await api("/api/logout", {}); } catch (e) { /* signed out either way */ }
+    ME = null; mount(root); showLogin();
+  } }, "Sign out"));
+  mount(root, el("div", { class: "menu-pop", role: "menu" }, items));
+});
+document.addEventListener("click", e => {
+  const root = document.getElementById("menu-root");
+  if (root.firstChild && !root.contains(e.target) && e.target !== meBtn) mount(root);
+});
+
+function showLogin(message) {
+  document.body.classList.add("signed-out");
+  const root = document.getElementById("login-root");
+  const user = el("input", { id: "login-user", autocomplete: "username", placeholder: "Username", autocapitalize: "none", spellcheck: "false", required: true });
+  const pass = el("input", { id: "login-pass", type: "password", autocomplete: "current-password", placeholder: "Password", required: true });
+  const err = el("p", { class: "login-err", role: "alert" }, message || "");
+  const submit = el("button", { class: "btn primary", type: "submit" }, "Sign in");
+  const form = el("form", { class: "login-card" },
+    el("h1", { class: "hero" }, el("span", { class: "l1" }, "Sign in."), el("span", { class: "l2" }, "Review what your agents did.")),
+    user, pass, err, submit);
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    submit.disabled = true; err.textContent = "";
+    try {
+      ME = await api("/api/login", { username: user.value, password: pass.value });
+      mount(root); document.body.classList.remove("signed-out"); start();
+    } catch (ex) { err.textContent = ex.message; pass.value = ""; pass.focus(); }
+    submit.disabled = false;
+  });
+  mount(root, el("div", { class: "login" }, form));
+  user.focus();
+}
+
+let started = false;
+function start() {
+  renderMe();
+  loadIntegrity();
+  route();
+  if (!started) { started = true; setInterval(() => { if (!document.hidden && ME) loadIntegrity(); }, 15000); }
+}
+(async () => {
+  try { ME = await api("/api/me"); start(); }
+  catch (e) { showLogin(); }
+})();
 </script>
 </body>
 </html>

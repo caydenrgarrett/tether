@@ -32,6 +32,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
 import sys
@@ -184,11 +185,51 @@ def cmd_rollback(args):
 
 
 def cmd_log(args):
+    from .notify import to_cef
+
     entries = _repo(args).audit.entries(workspace=args.workspace, actor=args.agent)
     if args.denied:
         entries = [e for e in entries if e.get("outcome") == "denied"]
+    if args.since is not None:
+        entries = [e for e in entries if e["seq"] > args.since]
+    fmt = "jsonl" if args.json else args.format
     for e in entries:
-        print(json.dumps(e, sort_keys=True) if args.json else _fmt_entry(e))
+        if fmt == "jsonl":
+            print(json.dumps(e, sort_keys=True))
+        elif fmt == "cef":
+            print(to_cef(e, __version__))
+        else:
+            print(_fmt_entry(e))
+
+
+def cmd_notify(args):
+    from .notify import Notifier
+
+    repo = _repo(args)
+    n = Notifier(repo.meta)
+    if args.notify_cmd == "add":
+        hook = n.add(args.url, args.event, args.format)
+        repo.audit.append("notify_add", args.actor or default_actor(), url=args.url, events=hook["events"])
+        print(f"added webhook {hook['id']} ({hook['format']}) for: {', '.join(hook['events'])}")
+        if hook["format"] == "json":
+            print(f"signing secret (verify X-Tether-Signature with it): {hook['secret']}")
+    elif args.notify_cmd == "remove":
+        n.remove(args.id)
+        repo.audit.append("notify_remove", args.actor or default_actor(), webhook=args.id)
+        print(f"removed webhook {args.id}")
+    elif args.notify_cmd == "list":
+        hooks = n.hooks()
+        if not hooks:
+            print("no webhooks")
+        for h in hooks:
+            print(f"{h['id']}  {h['format']:<5}  {h['url']}  [{', '.join(h['events'])}]")
+    elif args.notify_cmd == "test":
+        sample = {"seq": 0, "ts": "", "action": "submit", "actor": "agent:test", "workspace": "ws_000000000000",
+                  "note": "Test notification from tether."}
+        if not n.hooks():
+            raise TetherError("no webhooks configured")
+        n.dispatch(sample, wait=True)
+        print("sent a test 'submit' event to every webhook that listens for it")
 
 
 def cmd_verify(args):
@@ -204,11 +245,14 @@ def cmd_serve(args):
 
     repo = _repo(args)
     reviewer = args.reviewer or args.actor or default_actor()
-    server = make_server(str(repo.root), reviewer, host=args.host, port=args.port)
+    server = make_server(str(repo.root), reviewer, host=args.host, port=args.port, allowed_hosts=args.allowed_host,
+                         certfile=args.tls_cert, keyfile=args.tls_key,
+                         secure_cookies=True if args.secure_cookies else None)
     host, port = server.server_address[:2]
+    scheme = "https" if args.tls_cert else "http"
     print(f"tether review app for {repo.root}")
-    print(f"reviewing as {reviewer}")
-    print(f"open http://{'localhost' if host == '127.0.0.1' else host}:{port}/  (ctrl-c to stop)")
+    print("team mode: everyone signs in" if server.team else f"local mode: reviewing as {reviewer}")
+    print(f"open {scheme}://{'localhost' if host == '127.0.0.1' else host}:{port}/  (ctrl-c to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -238,10 +282,12 @@ def cmd_agent_api(args):
     from .agent_api import make_server
 
     repo = _repo(args)
-    server = make_server(str(repo.root), host=args.host, port=args.port, max_body=args.max_body_mb * 1024 * 1024)
+    server = make_server(str(repo.root), host=args.host, port=args.port, max_body=args.max_body_mb * 1024 * 1024,
+                         certfile=args.tls_cert, keyfile=args.tls_key)
     host, port = server.server_address[:2]
-    print(f"tether agent API for {repo.root} on http://{host}:{port}/v1  (ctrl-c to stop)")
-    if host not in ("127.0.0.1", "localhost", "::1"):
+    scheme = "https" if args.tls_cert else "http"
+    print(f"tether agent API for {repo.root} on {scheme}://{host}:{port}/v1  (ctrl-c to stop)")
+    if host not in ("127.0.0.1", "localhost", "::1") and not args.tls_cert:
         print("warning: listening beyond localhost; put TLS in front of this", file=sys.stderr)
     try:
         server.serve_forever()
@@ -266,6 +312,46 @@ def cmd_mcp(args):
 def cmd_gc(args):
     r = _repo(args).gc(actor=args.actor)
     print(f"removed {r['removed']} unreferenced blob(s), freed {r['bytes']} bytes")
+
+
+def _read_password(args) -> str:
+    if args.password_stdin:
+        return sys.stdin.readline().rstrip("\n")
+    first = getpass.getpass("Password (12+ characters): ")
+    if getpass.getpass("Repeat password: ") != first:
+        raise TetherError("passwords don't match")
+    return first
+
+
+def cmd_user(args):
+    from .users import UserStore
+
+    repo = _repo(args)
+    users = UserStore(repo.meta)
+    actor = args.actor or default_actor()
+    if args.user_cmd == "list":
+        rows = users.list()
+        if not rows:
+            print("no users (the review app runs in local mode)")
+        for u in rows:
+            print(f"{u['name']:<24} {u['role']:<9} added {u['created'][:10]}")
+        return
+    if args.user_cmd == "add":
+        users.add(args.name, _read_password(args), args.role)
+        repo.audit.append("user_add", actor, user=args.name, role=args.role)
+        print(f"added {args.name} ({args.role}); the review app now requires sign-in")
+    elif args.user_cmd == "passwd":
+        users.set_password(args.name, _read_password(args))
+        repo.audit.append("user_passwd", actor, user=args.name)
+        print(f"password changed for {args.name}")
+    elif args.user_cmd == "role":
+        users.set_role(args.name, args.role)
+        repo.audit.append("user_role", actor, user=args.name, role=args.role)
+        print(f"{args.name} is now {args.role}")
+    elif args.user_cmd == "remove":
+        users.remove(args.name)
+        repo.audit.append("user_remove", actor, user=args.name)
+        print(f"removed {args.name}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -340,8 +426,24 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--workspace")
     p.add_argument("--agent")
     p.add_argument("--denied", action="store_true", help="only denied actions")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="same as --format jsonl")
+    p.add_argument("--format", choices=["text", "jsonl", "cef"], default="text",
+                   help="jsonl or cef (ArcSight Common Event Format) to feed a SIEM")
+    p.add_argument("--since", type=int, metavar="SEQ", help="only entries after this sequence number")
     p.set_defaults(func=cmd_log)
+
+    p = sub.add_parser("notify", help="send Slack or webhook alerts on flags, submissions and merges")
+    ns = p.add_subparsers(dest="notify_cmd", required=True)
+    q = ns.add_parser("add", help="add a webhook (Slack incoming-webhook URL or any HTTPS endpoint)")
+    q.add_argument("url")
+    q.add_argument("--event", action="append", choices=["flag", "submit", "merge", "discard", "rollback", "login_failed"],
+                   help="only these events (repeatable; default: all)")
+    q.add_argument("--format", choices=["slack", "json"], default="slack")
+    q = ns.add_parser("remove", help="remove a webhook")
+    q.add_argument("id")
+    ns.add_parser("list", help="list webhooks")
+    ns.add_parser("test", help="send a test event")
+    p.set_defaults(func=cmd_notify)
 
     p = sub.add_parser("verify", help="check the audit log for tampering")
     p.add_argument("--expect-head", help="head hash recorded earlier, to detect truncation")
@@ -364,6 +466,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8701)
     p.add_argument("--max-body-mb", type=int, default=64)
+    p.add_argument("--tls-cert", help="PEM certificate to serve HTTPS")
+    p.add_argument("--tls-key", help="PEM private key for --tls-cert")
     p.set_defaults(func=cmd_agent_api)
 
     p = sub.add_parser("mcp", help="run an MCP server over stdio for one workspace")
@@ -378,8 +482,30 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("serve", help="open the review web app")
     p.add_argument("--host", default="127.0.0.1", help="interface to bind (default: localhost only)")
     p.add_argument("--port", type=int, default=8700)
-    p.add_argument("--reviewer", help="identity recorded for approvals (default: --actor)")
+    p.add_argument("--reviewer", help="identity for approvals in local mode (default: --actor)")
+    p.add_argument("--allowed-host", action="append", metavar="HOST[:PORT]",
+                   help="public hostname the app is reached at, e.g. behind a reverse proxy (repeatable)")
+    p.add_argument("--tls-cert", help="PEM certificate to serve HTTPS")
+    p.add_argument("--tls-key", help="PEM private key for --tls-cert")
+    p.add_argument("--secure-cookies", action="store_true", help="mark cookies Secure (when TLS ends at a proxy)")
     p.set_defaults(func=cmd_serve)
+
+    p = sub.add_parser("user", help="manage review-app accounts (adding one turns on sign-in)")
+    us = p.add_subparsers(dest="user_cmd", required=True)
+    q = us.add_parser("add", help="add a user")
+    q.add_argument("name")
+    q.add_argument("--role", choices=["viewer", "reviewer", "admin"], default="reviewer")
+    q.add_argument("--password-stdin", action="store_true", help="read the password from stdin")
+    q = us.add_parser("passwd", help="change a user's password")
+    q.add_argument("name")
+    q.add_argument("--password-stdin", action="store_true")
+    q = us.add_parser("role", help="change a user's role")
+    q.add_argument("name")
+    q.add_argument("role", choices=["viewer", "reviewer", "admin"])
+    q = us.add_parser("remove", help="remove a user")
+    q.add_argument("name")
+    us.add_parser("list", help="list users")
+    p.set_defaults(func=cmd_user)
     return parser
 
 

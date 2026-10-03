@@ -89,6 +89,9 @@ a { color: var(--accent); }
 .pill.merged { background: var(--ok-bg); color: var(--ok); }
 .pill.discarded { background: var(--panel-2); color: var(--muted); }
 .pill.flag { background: var(--bad-bg); color: var(--bad); }
+.pill.ready { background: var(--ok-bg); color: var(--ok); }
+.alert.info { background: var(--info-bg); border-color: color-mix(in srgb, var(--accent) 25%, transparent); }
+.alert.info h3 { color: var(--accent); }
 .pill.read { background: var(--info-bg); color: var(--accent); }
 .pill.write { background: var(--warn-bg); color: var(--warn); }
 .pill.none { background: var(--bad-bg); color: var(--bad); }
@@ -391,6 +394,7 @@ function renderList() {
       el("div", { class: "ws-row" },
         el("span", { class: "ws-agent" }, w.agent),
         w.flags ? el("span", { class: "pill flag", title: "guardrail flags" }, svg(ICON.flag, 11), w.flags) : null,
+        w.status === "open" && w.submitted_at ? el("span", { class: "pill ready", title: "agent submitted for review" }, "ready") : null,
         el("span", { class: "pill " + w.status }, w.status)),
       el("div", { class: "ws-task" }, w.task || w.id),
       el("div", { class: "ws-row" }, counts(w.changes), el("span", { class: "spacer" }),
@@ -422,6 +426,9 @@ async function loadDetail() {
       el("span", {}, el("b", {}, w.files.length), " files changed"),
       denied ? el("span", { class: "denied" }, el("b", {}, denied), " denied") : null),
     flagsBlock(w),
+    w.status === "open" && w.submitted_at ? el("div", { class: "alert info" },
+      el("h3", {}, "Agent submitted this for review · " + ago(w.submitted_at)),
+      w.submit_note ? el("div", {}, "“", w.submit_note, "”") : el("div", { class: "vmeta" }, "No note.")) : null,
     decisionBlock(w),
     changesCard(w),
     policyCard(w),
@@ -538,6 +545,10 @@ function policyCard(w) {
       : el("div", { class: "vmeta" }, "No rules — nothing is accessible."),
     el("div", { class: "chips" }, Object.entries(p.guardrails).filter(([, v]) => v !== null && v !== false)
       .map(([k, v]) => el("span", { class: "chip" }, v === true ? k : `${k}=${v}`))),
+    p.auto_approve ? el("div", { class: "vmeta", style: "margin-top:10px" },
+      "Auto-approves on submit: ", el("span", { class: "mono" }, p.auto_approve.paths.join(", ")),
+      p.auto_approve.max_changes !== null ? ` · up to ${p.auto_approve.max_changes} files` : "",
+      p.auto_approve.allow_deletes ? " · deletes allowed" : " · no deletes") : null,
   ]);
   return el("div", { class: "card" },
     el("div", { class: "card-head" }, el("h3", {}, "Access policy"), el("span", { class: "sub" }, "Deny by default · last matching rule wins")),
@@ -546,7 +557,8 @@ function policyCard(w) {
 
 function describe(e, showWs) {
   const verb = { read: "read", write: "wrote", delete: "deleted", list: "listed files", create: "created workspace",
-    fork: "forked workspace", merge: "merge", discard: "discarded workspace", rollback: "rolled back",
+    fork: "forked workspace", merge: "merged", submit: "submitted for review", token: "issued agent token",
+    revoke: "revoked agent tokens", auto_approve: "auto-approve skipped", auth: "rejected token", gc: "garbage collected", discard: "discarded workspace", rollback: "rolled back",
     snapshot: "snapshot", init: "initialized repository" }[e.action] || e.action;
   const bits = [el("span", { class: "actor" }, e.actor), " ", el("b", {}, e.outcome === "denied" ? "tried to " + e.action : verb)];
   if (e.path) bits.push(" ", el("span", { class: "path" }, e.path));

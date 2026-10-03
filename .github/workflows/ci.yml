@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: pip install .
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t . -v
+      - name: Demo
+        run: python examples/demo.py
+      - name: CLI smoke test
+        run: |
+          mkdir -p /tmp/drive/docs && echo hello > /tmp/drive/docs/a.txt
+          cd /tmp/drive
+          export TETHER_USER=user:ci
+          tether init
+          WS=$(tether create --agent agent:ci --read 'docs/**' --write 'out/**' --auto-approve 'out/**')
+          tether cat "$WS" docs/a.txt
+          echo summary | tether put "$WS" out/summary.md
+          tether submit "$WS" --note "ci" | grep -q "merged"
+          test -f out/summary.md
+          tether verify

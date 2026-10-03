@@ -59,6 +59,7 @@ def seed(root: Path) -> Repo:
     ws.read("finance/invoices.csv")
     ws.write("finance/invoices.csv", "id,customer,amount,status\n1001,Acme Corp,10000,paid\n"
                                      "1002,Globex,45000,paid\n1003,Initech,4500,due\n")
+    ws.submit("Marked invoice 1002 (Globex) paid per the bank export; 1003 still outstanding.")
 
     # Flagged and waiting: the prompt injection in acme.txt sent this agent off-script.
     ws = repo.create_workspace(

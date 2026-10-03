@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import difflib
 import getpass
+import hmac
 import os
 import re
 import secrets
@@ -32,6 +33,7 @@ from .store import (
     normalize_path,
     read_json,
     scan_directory,
+    sha256,
     write_json,
 )
 
@@ -41,6 +43,8 @@ except ImportError:  # pragma: no cover - Windows
     fcntl = None
 
 WORKSPACE_ID = re.compile(r"^ws_[0-9a-f]{12}$")
+TOKEN = re.compile(r"^tth_([0-9a-f]{12})_[A-Za-z0-9_\-]{32,}$")
+AUTO_REVIEWER = "policy:auto-approve"
 
 
 class TetherError(Exception):
@@ -99,7 +103,10 @@ class Repo:
         if not self.meta.is_dir():
             raise NotARepo(f"{self.root} is not a tether repository (run `tether init`)")
         self.objects = ObjectStore(self.meta / "objects")
-        self.audit = AuditLog(self.meta / "audit.log", self.meta / "audit.key")
+        # The HMAC key should live where agents can't reach it; point
+        # TETHER_AUDIT_KEY_FILE at it (default: inside .tether/ for local use).
+        key = os.environ.get("TETHER_AUDIT_KEY_FILE") or self.meta / "audit.key"
+        self.audit = AuditLog(self.meta / "audit.log", Path(key))
         self._lock_depth = 0
 
     # -- setup -------------------------------------------------------------
@@ -321,12 +328,104 @@ class Repo:
                                          workspace=ws_id, agent=st["agent"], approved_by=reviewer)
             else:
                 n = current_v
-            st.update(status="merged", merged_version=n, closed_at=now(), closed_by=reviewer)
+            st.update(status="merged", merged_version=n, closed_at=now(), closed_by=reviewer, token_hashes=[])
             ws._save(st)
             self.audit.append("merge", reviewer, workspace=ws_id, agent=st["agent"], outcome="allowed",
                               version=n, changes=[{"status": c.status, "path": c.path} for c in changes],
                               flags_overridden=len(st["flags"]) if st["flags"] else None)
             return n
+
+    def auto_approval_blocker(self, ws_id: str) -> str | None:
+        """Why this workspace can't merge without a human, or None if it can.
+
+        Every policy in the chain must allow it, so a sub-agent can't grant
+        itself auto-approval by forking with a looser policy.
+        """
+        st = self.workspace(ws_id).state
+        policies = [Policy.from_dict(p) for p in st["policies"]]
+        if any(p.auto_approve is None for p in policies):
+            return "policy requires human review"
+        if st["flags"]:
+            return "workspace has guardrail flags"
+        changes = diff_manifests(self.version(st["base_version"])["manifest"], st["manifest"])
+        if not changes:
+            return "no changes"
+        for p in policies:
+            a = p.auto_approve
+            if a.max_changes is not None and len(changes) > a.max_changes:
+                return f"{len(changes)} changes exceeds auto-approve max_changes={a.max_changes}"
+            for c in changes:
+                if c.status == "deleted" and not a.allow_deletes:
+                    return f"deleting {c.path} needs human review"
+                if not a.covers(c.path):
+                    return f"{c.path} is outside the auto-approve paths"
+        return None
+
+    # -- agent credentials -------------------------------------------------
+
+    def issue_token(self, ws_id: str, actor: str | None = None) -> str:
+        """Create a bearer token that grants an agent access to one workspace.
+
+        Only a hash is stored; the token is shown once.
+        """
+        actor = actor or default_actor()
+        with self._locked():
+            ws = self.workspace(ws_id)
+            st = ws.state
+            if st["status"] != "open":
+                raise TetherError(f"workspace is {st['status']}")
+            token = f"tth_{ws_id[3:]}_{secrets.token_urlsafe(32)}"
+            st.setdefault("token_hashes", []).append(sha256(token.encode()))
+            ws._save(st)
+            self.audit.append("token", actor, workspace=ws_id, agent=st["agent"])
+            return token
+
+    def revoke_tokens(self, ws_id: str, actor: str | None = None) -> int:
+        actor = actor or default_actor()
+        with self._locked():
+            ws = self.workspace(ws_id)
+            st = ws.state
+            n = len(st.get("token_hashes", []))
+            st["token_hashes"] = []
+            ws._save(st)
+            self.audit.append("revoke", actor, workspace=ws_id, agent=st["agent"], tokens=n)
+            return n
+
+    def authenticate(self, token: str) -> "Workspace":
+        m = TOKEN.match(token or "")
+        if not m:
+            raise AccessDenied("invalid token")
+        path = self._ws_path("ws_" + m.group(1))
+        if not path.exists():
+            raise AccessDenied("invalid token")
+        digest = sha256(token.encode())
+        if not any(hmac.compare_digest(digest, h) for h in read_json(path).get("token_hashes", [])):
+            raise AccessDenied("invalid token")
+        return Workspace(self, "ws_" + m.group(1))
+
+    # -- maintenance -------------------------------------------------------
+
+    def gc(self, actor: str | None = None) -> dict:
+        """Delete blobs no version or workspace refers to.
+
+        These are intermediate contents an agent overwrote before it finished.
+        Their hashes stay in the audit log, but the bytes are gone afterwards.
+        """
+        actor = actor or default_actor()
+        with self._locked():
+            live: set[str] = set()
+            for n in range(self.head() + 1):
+                live.update(self.version(n)["manifest"].values())
+            for p in (self.meta / "workspaces").glob("ws_*.json"):
+                live.update(read_json(p)["manifest"].values())
+            removed = freed = 0
+            for blob in self.objects.path.glob("??/*"):
+                if blob.parent.name + blob.name not in live:
+                    freed += blob.stat().st_size
+                    blob.unlink()
+                    removed += 1
+            self.audit.append("gc", actor, removed=removed, bytes=freed)
+            return {"removed": removed, "bytes": freed}
 
     def discard(self, ws_id: str, actor: str | None = None, reason: str | None = None) -> None:
         actor = actor or default_actor()
@@ -335,7 +434,7 @@ class Repo:
             st = ws.state
             if st["status"] != "open":
                 raise TetherError(f"workspace is {st['status']}")
-            st.update(status="discarded", closed_at=now(), closed_by=actor)
+            st.update(status="discarded", closed_at=now(), closed_by=actor, token_hashes=[])
             ws._save(st)
             self.audit.append("discard", actor, workspace=ws_id, agent=st["agent"], reason=reason)
 
@@ -484,6 +583,37 @@ class Workspace:
 
     def exists(self, path: str) -> bool:
         return path in self.list(path)
+
+    def submit(self, note: str | None = None) -> dict:
+        """Agent signals it's done. Merges right away if auto-approve allows it."""
+        with self.repo._locked():
+            st = self.state
+            if st["status"] != "open":
+                self._deny(st, "submit", None, f"workspace is {st['status']}")
+            note = note[:2000] if note else None
+            st.update(submitted_at=now(), submit_note=note)
+            self._save(st)
+            self.repo.audit.append("submit", st["agent"], workspace=self.id, note=note,
+                                   changes=len(self.diff()))
+            blocker = self.repo.auto_approval_blocker(self.id)
+            if blocker is None:
+                try:
+                    n = self.repo.merge(self.id, reviewer=AUTO_REVIEWER)
+                    return {"status": "merged", "version": n, "approved_by": AUTO_REVIEWER}
+                except MergeBlocked as e:
+                    blocker = str(e)
+            self.repo.audit.append("auto_approve", AUTO_REVIEWER, workspace=self.id, outcome="skipped",
+                                   reason=blocker)
+            return {"status": "awaiting_review", "reason": blocker}
+
+    def info(self) -> dict:
+        st = self.state
+        return {k: st.get(k) for k in ("id", "agent", "task", "status", "base_version", "parent", "created",
+                                       "counters", "flags", "policies", "submitted_at", "submit_note",
+                                       "merged_version", "closed_at", "closed_by")}
+
+    def changes(self) -> list[dict]:
+        return [{"status": c.status, "path": c.path} for c in self.diff()]
 
     # -- review ------------------------------------------------------------
 

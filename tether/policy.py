@@ -76,9 +76,38 @@ class Guardrails:
 
 
 @dataclass
+class AutoApprove:
+    """Changes that may merge without a human when the agent submits.
+
+    Every change must fall under one of ``paths``; deletes need
+    ``allow_deletes``; and there may be at most ``max_changes`` files.
+    A flagged workspace is never auto-approved.
+    """
+    paths: list[str] = field(default_factory=list)
+    max_changes: int | None = None
+    allow_deletes: bool = False
+
+    @classmethod
+    def from_dict(cls, d: dict | None) -> "AutoApprove | None":
+        if d is None:
+            return None
+        unknown = set(d) - set(cls.__dataclass_fields__)
+        if unknown:
+            raise ValueError(f"unknown auto_approve settings: {sorted(unknown)}")
+        return cls(**d)
+
+    def to_dict(self) -> dict:
+        return {"paths": list(self.paths), "max_changes": self.max_changes, "allow_deletes": self.allow_deletes}
+
+    def covers(self, path: str) -> bool:
+        return any(glob_to_regex(g).match(path) for g in self.paths)
+
+
+@dataclass
 class Policy:
     rules: list[Rule] = field(default_factory=list)
     guardrails: Guardrails = field(default_factory=Guardrails)
+    auto_approve: AutoApprove | None = None
 
     def access_for(self, path: str) -> str:
         level = "none"
@@ -92,18 +121,20 @@ class Policy:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Policy":
-        unknown = set(d) - {"rules", "guardrails"}
+        unknown = set(d) - {"rules", "guardrails", "auto_approve"}
         if unknown:
             raise ValueError(f"unknown policy keys: {sorted(unknown)}")
         return cls(
             rules=[Rule(r["path"], r["access"]) for r in d.get("rules", [])],
             guardrails=Guardrails.from_dict(d.get("guardrails")),
+            auto_approve=AutoApprove.from_dict(d.get("auto_approve")),
         )
 
     def to_dict(self) -> dict:
         return {
             "rules": [{"path": r.path, "access": r.access} for r in self.rules],
             "guardrails": self.guardrails.to_dict(),
+            "auto_approve": self.auto_approve.to_dict() if self.auto_approve else None,
         }
 
 

@@ -49,6 +49,7 @@ tether log --workspace $WS
 tether log --denied
 tether verify                                 # exits 1 if the log was tampered with
 tether serve                                  # the review web app
+tether gc                                     # delete blobs nothing refers to
 ```
 
 From Python, which is how an agent harness would use it:
@@ -77,6 +78,84 @@ ws.write("reports/summary.md", "...")
 print(ws.render_diff())
 repo.merge(ws.id, reviewer="user:bob")
 ```
+
+## Connecting agents
+
+There are three ways to connect an agent. Pick whichever fits how it runs.
+
+### 1. MCP: Claude Code, Claude Desktop and other MCP clients
+
+```bash
+WS=$(tether create --agent agent:claude --task "summarize contracts" --read 'contracts/**' --write 'reports/**')
+claude mcp add tether -- tether --root /path/to/drive mcp --workspace $WS
+```
+
+Or put it in any MCP client config:
+
+```json
+{"mcpServers": {"tether": {"command": "tether", "args": ["--root", "/path/to/drive", "mcp", "--workspace", "ws_..."]}}}
+```
+
+The agent gets seven tools: `list_files`, `read_file`, `write_file`, `delete_file`, `show_changes`, `workspace_info` and `submit_for_review`. Every call goes through the workspace's policy, guardrails and audit log. A denied call comes back to the agent as a tool error, so it knows to stop rather than retry. The server also tells the agent to ignore instructions it finds inside file contents.
+
+For the strongest isolation, turn off the agent's own file and shell tools so these are its only access. With Claude Code that means `--disallowedTools "Bash,Read,Write,Edit,Glob,Grep"`.
+
+### 2. HTTP API: agents in containers or on other machines
+
+```bash
+tether agent-api --port 8701           # add --host 0.0.0.0 behind a TLS proxy
+tether token $WS                        # prints tth_..., shown once
+```
+
+| Method | Path | |
+|---|---|---|
+| `GET` | `/v1/workspace` | workspace info and policy |
+| `GET` | `/v1/files?prefix=P` | files the agent may read |
+| `GET` / `PUT` / `DELETE` | `/v1/files/<path>` | read, write (raw body), delete |
+| `GET` | `/v1/changes` | changed files and a unified diff |
+| `POST` | `/v1/submit` | `{"note": "..."}`. Done; merges at once if auto-approve allows. |
+
+Every request needs `Authorization: Bearer tth_...`. A token is bound to exactly one workspace. Only its SHA-256 hash is stored. It's revoked automatically when the workspace is merged or discarded, and `tether revoke $WS` revokes it earlier. Requests with a bad token get a 401 and are logged. The agent never sees the real files or `.tether/`.
+
+To run an MCP agent against a remote API, use `tether mcp --url https://host:8701 --token tth_...`.
+
+### 3. Python
+
+```python
+from tether.client import Client           # remote, over HTTP
+ws = Client("http://127.0.0.1:8701", token)
+
+# or, in-process:  ws = Repo.find("drive").workspace("ws_...")
+
+ws.list("contracts/"); ws.read_text("contracts/acme.txt")
+ws.write("reports/summary.md", "...")
+ws.submit("summary ready")   # {"status": "merged", ...} or {"status": "awaiting_review", "reason": ...}
+```
+
+`Client` and `Workspace` have the same methods, so agent code doesn't change between local and remote.
+
+## Auto-approve
+
+Some changes are low-risk enough that a person shouldn't have to click approve. A policy can say which ones:
+
+```json
+"auto_approve": {"paths": ["reports/**"], "max_changes": 5, "allow_deletes": false}
+```
+
+```bash
+tether create --agent agent:reporter --read 'data/**' --write 'reports/**' \
+              --auto-approve 'reports/**' --auto-max-changes 5
+```
+
+When the agent submits, tether merges it right away as `policy:auto-approve` if all of these hold:
+
+- every changed file is under one of the `paths`
+- the number of changed files is within `max_changes`
+- there are no deletes, unless `allow_deletes` is set
+- the workspace has no guardrail flags
+- nothing conflicts with edits made to the real files since the fork
+
+If any check fails, the workspace waits for a human, and the reason is returned to the agent and written to the audit log. **A forked sub-agent can't grant itself auto-approval**, because every policy in the fork chain must allow the change.
 
 ## Review app
 
@@ -173,13 +252,22 @@ company-drive/                 the real files (agents never touch these directly
 
 - **Copy-on-write.** A workspace is a dict of path to content hash. Forking copies that dict and no file data. A write stores one new blob and repoints one entry.
 - **Versions.** Each version is a full manifest. Diffs, merges, and rollbacks are manifest comparisons, and only changed files are written to disk.
+- **Entry points.** The Python library, CLI, MCP server and HTTP API all call the same `Workspace` methods, so a policy is enforced identically everywhere.
 - **Enforcement point.** Every agent operation goes through `Workspace`. It normalizes the path, evaluates the policy chain, applies guardrails, performs the operation, and writes the audit entry. Denials are logged before the error is raised.
 
-## Known limitations of the prototype
+## Deployment notes
 
-- **The agent runs with your filesystem permissions.** The sandbox is the API, not the OS. That's fine when the harness only gives the agent the workspace tools, but not if the agent has a shell on the same machine. Next steps are to run the service as a separate user or behind an HTTP API, and to move `audit.key` into a KMS or a separate log service.
+- **Isolate agents from the files.** Run `tether agent-api` as a dedicated OS user that owns the drive and `.tether/`. Run agents somewhere else, such as a container, another user or another machine, with only the URL and a token. The API is then the only path to the files.
+- **Keep the audit key away from agents.** Set `TETHER_AUDIT_KEY_FILE` to a path outside the drive that only the tether user can read. In production, keep it in a KMS or a separate signing service.
+- **Anchor the audit head.** Copy `tether verify`'s head hash somewhere agents can't write, on a schedule, so a truncated log can be detected.
+- **Garbage collection.** `tether gc` deletes stored content that nothing points to any more, typically drafts an agent overwrote before finishing. Their hashes stay in the audit log, but the bytes don't, so skip `gc` if you need to keep every intermediate draft for forensics.
+
+## Known limitations
+
+- **The sandbox is the API, not the OS.** In-process use, MCP over stdio and the CLI run with your own filesystem permissions. Hard isolation needs the HTTP API with agents running as a different user or in a container, as described under deployment notes.
 - **No mounted drive.** There's no FUSE mount or WebDAV yet; agents use the API or the CLI.
 - **One reviewer, one machine.** The review app has no logins or roles yet; it acts as whoever started it.
+- **No TLS in the built-in servers.** Put a reverse proxy in front of `agent-api` before exposing it beyond localhost.
 - **Single-machine storage.** Concurrency comes from `flock`, and storage is a local directory instead of S3 or Postgres.
 - **Regex secret scanning.** It will miss some credentials and flag some false positives.
 - **Simple merge model.** Conflicts are detected per file, with no line-level three-way merge.

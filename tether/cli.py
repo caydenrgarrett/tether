@@ -17,6 +17,16 @@
     tether log [--workspace WS] [--agent NAME] [--denied] [--json]
     tether verify [--expect-head HASH]
     tether serve [--port N] [--reviewer NAME]   # review web app
+
+  Connecting agents:
+    tether token WS                   # issue a bearer token for one workspace
+    tether revoke WS                  # revoke all of its tokens
+    tether agent-api [--host H] [--port N]
+    tether mcp --workspace WS         # MCP server over stdio (or --url/--token for remote)
+    tether submit WS [--note TEXT]    # agent is done; auto-merges if policy allows
+
+  Maintenance:
+    tether gc                         # delete unreferenced blobs
 """
 
 from __future__ import annotations
@@ -51,6 +61,9 @@ def _policy(args) -> Policy:
         g["max_writes"] = args.max_writes
     if args.block_secret_reads:
         g["block_secret_reads"] = True
+    if args.auto_approve:
+        d["auto_approve"] = {"paths": args.auto_approve, "max_changes": args.auto_max_changes,
+                             "allow_deletes": args.auto_allow_deletes}
     if not rules:
         raise TetherError("policy grants nothing; pass --read/--write globs or --policy FILE")
     return Policy.from_dict(d)
@@ -66,6 +79,10 @@ def _add_policy_flags(p):
     p.add_argument("--max-reads", type=int)
     p.add_argument("--max-writes", type=int)
     p.add_argument("--block-secret-reads", action="store_true")
+    p.add_argument("--auto-approve", action="append", metavar="GLOB",
+                   help="merge on submit without review if every change is under these paths (repeatable)")
+    p.add_argument("--auto-max-changes", type=int, help="auto-approve at most this many changed files")
+    p.add_argument("--auto-allow-deletes", action="store_true", help="let auto-approve include deletes")
 
 
 def _fmt_entry(e: dict) -> str:
@@ -108,6 +125,7 @@ def cmd_ls(args):
 def cmd_show(args):
     st = dict(_repo(args).workspace(args.workspace).state)
     st["files"] = len(st.pop("manifest"))
+    st["tokens"] = len(st.pop("token_hashes", []))
     print(json.dumps(st, indent=2))
 
 
@@ -199,6 +217,57 @@ def cmd_serve(args):
         server.server_close()
 
 
+def cmd_token(args):
+    print(_repo(args).issue_token(args.workspace, actor=args.actor))
+
+
+def cmd_revoke(args):
+    n = _repo(args).revoke_tokens(args.workspace, actor=args.actor)
+    print(f"revoked {n} token(s) for {args.workspace}")
+
+
+def cmd_submit(args):
+    r = _repo(args).workspace(args.workspace).submit(args.note)
+    if r["status"] == "merged":
+        print(f"auto-approved and merged as v{r['version']}")
+    else:
+        print(f"submitted for review ({r['reason']})")
+
+
+def cmd_agent_api(args):
+    from .agent_api import make_server
+
+    repo = _repo(args)
+    server = make_server(str(repo.root), host=args.host, port=args.port, max_body=args.max_body_mb * 1024 * 1024)
+    host, port = server.server_address[:2]
+    print(f"tether agent API for {repo.root} on http://{host}:{port}/v1  (ctrl-c to stop)")
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        print("warning: listening beyond localhost; put TLS in front of this", file=sys.stderr)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
+def cmd_mcp(args):
+    from .mcp import MCPServer
+
+    if args.workspace:
+        backend = _repo(args).workspace(args.workspace)
+    else:
+        from .client import Client
+
+        backend = Client(args.url, args.token)
+    MCPServer(backend).serve()
+
+
+def cmd_gc(args):
+    r = _repo(args).gc(actor=args.actor)
+    print(f"removed {r['removed']} unreferenced blob(s), freed {r['bytes']} bytes")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tether", description=__doc__.split("\n")[0])
     parser.add_argument("--version", action="version", version=f"tether {__version__}")
@@ -277,6 +346,34 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("verify", help="check the audit log for tampering")
     p.add_argument("--expect-head", help="head hash recorded earlier, to detect truncation")
     p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("token", help="issue a bearer token for an agent's workspace (shown once)")
+    p.add_argument("workspace")
+    p.set_defaults(func=cmd_token)
+
+    p = sub.add_parser("revoke", help="revoke all tokens for a workspace")
+    p.add_argument("workspace")
+    p.set_defaults(func=cmd_revoke)
+
+    p = sub.add_parser("submit", help="mark a workspace done (as the agent); auto-merges if policy allows")
+    p.add_argument("workspace")
+    p.add_argument("--note")
+    p.set_defaults(func=cmd_submit)
+
+    p = sub.add_parser("agent-api", help="serve the token-authenticated HTTP API for agents")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8701)
+    p.add_argument("--max-body-mb", type=int, default=64)
+    p.set_defaults(func=cmd_agent_api)
+
+    p = sub.add_parser("mcp", help="run an MCP server over stdio for one workspace")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--workspace", help="local workspace id")
+    g.add_argument("--url", help="agent API base URL (token from --token or $TETHER_TOKEN)")
+    p.add_argument("--token")
+    p.set_defaults(func=cmd_mcp)
+
+    sub.add_parser("gc", help="delete blobs nothing refers to").set_defaults(func=cmd_gc)
 
     p = sub.add_parser("serve", help="open the review web app")
     p.add_argument("--host", default="127.0.0.1", help="interface to bind (default: localhost only)")

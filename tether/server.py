@@ -40,6 +40,8 @@ def workspace_summary(ws: Workspace) -> dict:
         "base_version": st["base_version"],
         "merged_version": st.get("merged_version"),
         "parent": st.get("parent"),
+        "submitted_at": st.get("submitted_at"),
+        "submit_note": st.get("submit_note"),
         "counters": st["counters"],
         "flags": len(st["flags"]),
         "changes": {s: sum(c.status == s for c in changes) for s in ("added", "modified", "deleted")},

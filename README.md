@@ -1,5 +1,7 @@
 # tether
 
+[![CI](https://github.com/caydenrgarrett/tether/actions/workflows/ci.yml/badge.svg)](https://github.com/caydenrgarrett/tether/actions/workflows/ci.yml) · [Website](https://caydenrgarrett.github.io/tether/) · MIT license
+
 Versioned, sandboxed, forkable file workspaces for AI agents, with per-agent
 permissions and a tamper-evident audit log of everything an agent reads or changes.
 

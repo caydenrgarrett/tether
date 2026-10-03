@@ -57,6 +57,13 @@ class TestServer(unittest.TestCase):
         self.assertIn("+<script>alert(1)</script>", d["files"][0]["lines"])
         self.assertEqual([e["action"] for e in d["activity"]], ["create", "write"])
 
+    def test_serves_bundled_fonts_only(self):
+        status, data = self.request("GET", "/static/fonts/Geist-Variable.woff2")
+        self.assertEqual(status, 200)
+        self.assertEqual(data[:4], b"wOF2")
+        status, _ = self.request("GET", "/static/fonts/../../server.py")
+        self.assertEqual(status, 404)
+
     def test_rejects_foreign_host(self):
         status, _ = self.request("GET", "/api/workspaces", host="evil.example:80")
         self.assertEqual(status, 403)

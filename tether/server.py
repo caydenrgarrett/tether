@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, urlparse
 from .workspace import Repo, TetherError, Workspace
 
 MAX_BODY = 64 * 1024
+FONTS = {"Geist-Variable.woff2", "GeistMono-Variable.woff2"}
 
 
 def workspace_summary(ws: Workspace) -> dict:
@@ -87,7 +88,7 @@ def make_handler(root: str, reviewer: str, token: str, allowed_hosts: set[str]):
             self.send_header(
                 "Content-Security-Policy",
                 "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-                "connect-src 'self'; img-src data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+                "connect-src 'self'; img-src data:; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
             )
             self.end_headers()
             self.wfile.write(body)
@@ -121,6 +122,9 @@ def make_handler(root: str, reviewer: str, token: str, allowed_hosts: set[str]):
                 repo = Repo(root)
                 if url.path == "/":
                     return self._send(200, page.encode(), "text/html; charset=utf-8")
+                if url.path.startswith("/static/fonts/") and url.path.rsplit("/", 1)[1] in FONTS:
+                    font = resources.files("tether").joinpath("static", "fonts", url.path.rsplit("/", 1)[1])
+                    return self._send(200, font.read_bytes(), "font/woff2")
                 if url.path == "/api/workspaces":
                     return self._json([workspace_summary(ws) for ws in reversed(repo.workspaces())])
                 m = re.fullmatch(r"/api/workspaces/(ws_[0-9a-f]{12})", url.path)

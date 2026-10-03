@@ -2,237 +2,433 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>tether review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tether</title>
 <style>
+@font-face { font-family: "Geist"; src: url("/static/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("/static/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+
+/* Layout: floating pill header over a quiet textured ground; inbox panel + detail; actions float in a dock. */
 :root {
-  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f1f3f6; --border: #e2e5ea; --text: #161a20;
-  --muted: #5d6673; --faint: #8a93a0; --accent: #2f5bea; --accent-text: #ffffff;
-  --ok: #1b7f4b; --ok-bg: #e5f5ec; --warn: #9a5b00; --warn-bg: #fff4e0;
-  --bad: #c02d2d; --bad-bg: #fdecec; --info-bg: #e9efff;
-  --add-bg: #e8f6ee; --add-text: #155d38; --del-bg: #fdeeee; --del-text: #9b2323; --hunk: #6b5bd2;
-  --shadow: 0 1px 2px rgba(16, 24, 40, .06); --on-ok: #ffffff;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --bg: #f1f2f4;
+  --surface: #ffffff;
+  --glass: rgba(255, 255, 255, .62);
+  --glass-strong: rgba(255, 255, 255, .82);
+  --hairline: rgba(17, 18, 20, .08);
+  --hairline-2: rgba(17, 18, 20, .05);
+  --ink: #111214;
+  --ink-2: #5f6571;
+  --muted: #6e737c;
+  --faint: #9aa0a9;
+  --hover: rgba(17, 18, 20, .04);
+  --on-ink: #ffffff;
+
+  --red: #c8423a;   --red-soft: rgba(200, 66, 58, .09);
+  --green: #2f8a57; --green-soft: rgba(47, 138, 87, .1);
+  --amber: #a86a12; --amber-soft: rgba(168, 106, 18, .1);
+  --blue: #3d5bd9;  --blue-soft: rgba(61, 91, 217, .08);
+  --add-bg: rgba(47, 138, 87, .07); --del-bg: rgba(200, 66, 58, .07);
+
+  --bloom-a: rgba(143, 163, 200, .32);
+  --bloom-b: rgba(217, 154, 124, .26);
+  --grain-opacity: .35;
+
+  --r-pill: 999px; --r-card: 22px; --r-row: 14px;
+  --shadow-float: 0 1px 2px rgba(17, 18, 20, .04), 0 8px 24px rgba(17, 18, 20, .06);
+  --shadow-card: 0 1px 2px rgba(17, 18, 20, .03), 0 12px 40px rgba(17, 18, 20, .05);
+  --shadow-pop: 0 2px 6px rgba(17, 18, 20, .06), 0 30px 80px rgba(17, 18, 20, .16);
+
+  --sans: "Geist", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --top-h: 88px;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1116; --panel: #161a21; --panel-2: #1d222b; --border: #2a303b; --text: #e6e9ee;
-    --muted: #9aa3b1; --faint: #6c7584; --accent: #6b8cff; --accent-text: #0e1116;
-    --ok: #4cc38a; --ok-bg: #12291e; --warn: #f0b356; --warn-bg: #2d2312;
-    --bad: #ff7b7b; --bad-bg: #2f1517; --info-bg: #1a2240;
-    --add-bg: #12291e; --add-text: #7fdcaa; --del-bg: #2f1517; --del-text: #ff9c9c; --hunk: #a99cff;
-    --shadow: none; --on-ok: #0b1f15;
+  :root:not([data-theme="light"]) {
+    --bg: #0e0f11; --surface: #17191c; --glass: rgba(26, 28, 32, .62); --glass-strong: rgba(30, 32, 36, .86);
+    --hairline: rgba(255, 255, 255, .08); --hairline-2: rgba(255, 255, 255, .05);
+    --ink: #f1f2f4; --ink-2: #8d939d; --muted: #9ba1aa; --faint: #6b717b; --hover: rgba(255, 255, 255, .05); --on-ink: #0e0f11;
+    --red: #f07a70; --red-soft: rgba(240, 122, 112, .12); --green: #5cc58d; --green-soft: rgba(92, 197, 141, .12);
+    --amber: #e3a64b; --amber-soft: rgba(227, 166, 75, .12); --blue: #8ea4ff; --blue-soft: rgba(142, 164, 255, .12);
+    --add-bg: rgba(92, 197, 141, .09); --del-bg: rgba(240, 122, 112, .09);
+    --bloom-a: rgba(90, 112, 160, .22); --bloom-b: rgba(170, 100, 70, .16); --grain-opacity: .18;
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .25);
+    --shadow-pop: 0 2px 6px rgba(0, 0, 0, .4), 0 30px 80px rgba(0, 0, 0, .5);
+    color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #0e0f11; --surface: #17191c; --glass: rgba(26, 28, 32, .62); --glass-strong: rgba(30, 32, 36, .86);
+  --hairline: rgba(255, 255, 255, .08); --hairline-2: rgba(255, 255, 255, .05);
+  --ink: #f1f2f4; --ink-2: #8d939d; --muted: #9ba1aa; --faint: #6b717b; --hover: rgba(255, 255, 255, .05); --on-ink: #0e0f11;
+  --red: #f07a70; --red-soft: rgba(240, 122, 112, .12); --green: #5cc58d; --green-soft: rgba(92, 197, 141, .12);
+  --amber: #e3a64b; --amber-soft: rgba(227, 166, 75, .12); --blue: #8ea4ff; --blue-soft: rgba(142, 164, 255, .12);
+  --add-bg: rgba(92, 197, 141, .09); --del-bg: rgba(240, 122, 112, .09);
+  --bloom-a: rgba(90, 112, 160, .22); --bloom-b: rgba(170, 100, 70, .16); --grain-opacity: .18;
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .25);
+  --shadow-pop: 0 2px 6px rgba(0, 0, 0, .4), 0 30px 80px rgba(0, 0, 0, .5);
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
-  background: var(--bg); color: var(--text);
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  background: var(--bg); color: var(--ink); font: 400 14.5px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; min-height: 100vh;
 }
-button { font: inherit; cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: .55; }
-a { color: var(--accent); }
+/* ground: two soft blooms and a fine grain */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(60vw 50vh at 100% 0%, var(--bloom-b), transparent 70%),
+    radial-gradient(70vw 60vh at 0% 100%, var(--bloom-a), transparent 70%);
+}
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: var(--grain-opacity); mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+button:disabled { cursor: not-allowed; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 10px; }
+.mono { font-family: var(--mono); font-size: .92em; letter-spacing: -.01em; }
+.hidden { display: none !important; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
-/* top bar */
+/* ---------- header ---------- */
 .top {
-  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 20px;
-  padding: 0 20px; height: 56px; background: var(--panel); border-bottom: 1px solid var(--border);
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; height: var(--top-h);
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 28px;
 }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16px; letter-spacing: -.01em; }
-.brand svg { color: var(--accent); }
-.tabs { display: flex; gap: 4px; }
+.top::before {  /* soft fade so content slides under the floating pills */
+  content: ""; position: absolute; inset: 0 0 -24px 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(var(--bg) 40%, transparent);
+}
+.logo {
+  justify-self: start; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface); box-shadow: var(--shadow-float); text-decoration: none; transition: transform .3s var(--ease);
+}
+.logo:hover { transform: rotate(-8deg); }
+.logo svg { width: 24px; height: 24px; }
+.nav {
+  display: flex; gap: 2px; padding: 4px; border-radius: var(--r-pill);
+  background: var(--glass); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--shadow-float); border: 1px solid var(--hairline-2);
+}
 .tab {
-  border: 0; background: none; color: var(--muted); padding: 6px 12px; border-radius: 8px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: var(--r-pill);
+  color: var(--muted); font-weight: 500; transition: color .2s, background .2s;
 }
-.tab:hover { background: var(--panel-2); color: var(--text); }
-.tab[aria-current="page"] { background: var(--panel-2); color: var(--text); }
-.spacer { flex: 1; }
-.who { color: var(--muted); font-size: 13px; }
-.who b { color: var(--text); font-weight: 600; }
-.integrity {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
-  font-size: 12.5px; font-weight: 600; border: 0;
+.tab:hover { color: var(--ink); }
+.tab[aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(17,18,20,.06), 0 4px 12px rgba(17,18,20,.05); }
+.tab .count { font: 500 11px/1 var(--mono); padding: 3px 6px; border-radius: 99px; background: var(--ink); color: var(--on-ink); }
+.right { justify-self: end; display: flex; align-items: center; gap: 10px; }
+.pill-btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: var(--r-pill);
+  background: var(--glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-float); border: 1px solid var(--hairline-2); color: var(--muted); font-weight: 500; font-size: 13.5px;
+  transition: color .2s, transform .2s var(--ease);
 }
-.integrity.ok { background: var(--ok-bg); color: var(--ok); }
-.integrity.bad { background: var(--bad-bg); color: var(--bad); }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-
-/* layout */
-.layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: calc(100vh - 56px); }
-.layout > * { min-width: 0; }
-.sidebar { border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; height: calc(100vh - 56px); position: sticky; top: 56px; }
-.side-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
-.side-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-.seg { display: inline-flex; background: var(--panel-2); border-radius: 8px; padding: 2px; }
-.seg button { border: 0; background: none; color: var(--muted); padding: 3px 10px; border-radius: 6px; font-size: 12.5px; }
-.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
-.ws-list { list-style: none; margin: 0; padding: 0 8px 16px; }
-.ws-item {
-  display: block; width: 100%; text-align: left; border: 1px solid transparent; background: none; color: inherit;
-  padding: 10px 12px; border-radius: 10px; margin-bottom: 2px;
+.pill-btn:hover { color: var(--ink); }
+kbd { font: 500 11px/1 var(--mono); padding: 4px 6px; border-radius: 6px; background: var(--hover); border: 1px solid var(--hairline); color: var(--muted); }
+.integrity .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); box-shadow: 0 0 0 3px transparent; }
+.integrity.ok .dot { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+.integrity.bad { color: var(--red); }
+.integrity.bad .dot { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+.me {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--sans);
+  background: var(--ink); color: var(--on-ink); box-shadow: var(--shadow-float); text-transform: uppercase;
 }
-.ws-item:hover { background: var(--panel-2); }
-.ws-item[aria-current="true"] { background: var(--info-bg); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
-.ws-row { display: flex; align-items: center; gap: 8px; }
-.ws-agent { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.ws-task { color: var(--muted); font-size: 13px; margin: 2px 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.counts { display: flex; gap: 8px; font: 12px var(--mono); color: var(--faint); }
-.c-add { color: var(--add-text); } .c-mod { color: var(--warn); } .c-del { color: var(--del-text); }
-.empty { color: var(--muted); padding: 24px 16px; text-align: center; }
 
-.main { padding: 24px 28px 64px; max-width: 1100px; width: 100%; }
-
-/* pills & badges */
-.pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.pill.open { background: var(--info-bg); color: var(--accent); }
-.pill.merged { background: var(--ok-bg); color: var(--ok); }
-.pill.discarded { background: var(--panel-2); color: var(--muted); }
-.pill.flag { background: var(--bad-bg); color: var(--bad); }
-.pill.ready { background: var(--ok-bg); color: var(--ok); }
-.alert.info { background: var(--info-bg); border-color: color-mix(in srgb, var(--accent) 25%, transparent); }
-.alert.info h3 { color: var(--accent); }
-.pill.read { background: var(--info-bg); color: var(--accent); }
-.pill.write { background: var(--warn-bg); color: var(--warn); }
-.pill.none { background: var(--bad-bg); color: var(--bad); }
-
-/* detail */
-.crumbs { color: var(--faint); font: 12.5px var(--mono); margin-bottom: 6px; }
-h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.015em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.task { color: var(--muted); margin: 0 0 14px; font-size: 15px; }
-.meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-.meta b { color: var(--text); font-weight: 600; }
-.meta .denied, .meta .denied b { color: var(--bad); }
-
-.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 18px; }
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-.card-head h3 { margin: 0; font-size: 14px; font-weight: 650; }
-.card-head .sub { color: var(--muted); font-size: 13px; }
-.card-body { padding: 14px 16px; }
-
-.alert { border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; border: 1px solid; }
-.alert.bad { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
-.alert.ok { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
-.alert.muted { background: var(--panel-2); border-color: var(--border); }
-.alert h3 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-.alert.bad h3 { color: var(--bad); } .alert.ok h3 { color: var(--ok); }
-.alert ul { margin: 0; padding-left: 18px; }
-.alert li { margin: 3px 0; }
-.alert code, .mono { font-family: var(--mono); font-size: 12.5px; }
-
-/* decision bar */
-.decide { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; }
-.btn { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 8px 14px; border-radius: 9px; font-weight: 600; }
-.btn:hover:not(:disabled) { background: var(--panel-2); }
-.btn.primary { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
-.btn.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(--ok); }
-.btn.danger { color: var(--bad); }
-.btn.small { padding: 4px 10px; font-size: 12.5px; }
-.check { display: inline-flex; align-items: center; gap: 8px; color: var(--bad); font-weight: 500; font-size: 13px; }
-.reason { flex: 1; min-width: 200px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
-
-/* diffs */
-.file { border-top: 1px solid var(--border); }
-.file:first-child { border-top: 0; }
-.file-head {
-  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 16px; background: none; border: 0;
-  color: inherit; text-align: left; font: 13px var(--mono);
+/* ---------- review layout ---------- */
+.review { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 28px; padding: 8px 28px 140px; max-width: 1480px; margin: 0 auto; }
+.review > * { min-width: 0; }
+.inbox {
+  position: sticky; top: calc(var(--top-h) + env(safe-area-inset-top, 0px)); align-self: start;
+  max-height: calc(100vh - var(--top-h) - 24px); overflow: auto; border-radius: 26px; padding: 10px;
+  background: var(--glass); backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--hairline-2); box-shadow: var(--shadow-card);
 }
-.file-head:hover { background: var(--panel-2); }
-.chev { transition: transform .15s; color: var(--faint); }
+.inbox-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 12px; }
+.inbox-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.inbox-head h2 span { color: var(--faint); font-weight: 500; margin-left: 6px; font-family: var(--mono); font-size: 12.5px; }
+.seg { display: inline-flex; padding: 3px; border-radius: var(--r-pill); background: var(--hover); }
+.seg button { padding: 5px 12px; border-radius: var(--r-pill); color: var(--muted); font-size: 12.5px; font-weight: 500; transition: all .2s; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(17,18,20,.08); }
+.ws-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ws {
+  width: 100%; text-align: left; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; padding: 12px;
+  border-radius: 18px; transition: background .2s, box-shadow .25s var(--ease);
+}
+.ws:hover { background: var(--hover); }
+.ws[aria-current="true"] { background: var(--surface); box-shadow: var(--shadow-float); }
+.ws-body { display: block; min-width: 0; }
+.avatar {
+  width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font: 600 12px var(--mono);
+  background: var(--hover); color: var(--ink-2); border: 1px solid var(--hairline-2); text-transform: uppercase;
+}
+.ws[aria-current="true"] .avatar { background: var(--ink); color: var(--on-ink); border-color: transparent; }
+.ws-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ws-name { font-weight: 600; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.ws-time { color: var(--faint); font: 12px var(--mono); white-space: nowrap; }
+.ws-task { display: block; color: var(--muted); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 1px 0 7px; }
+.ws-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.delta { font: 12px var(--mono); color: var(--faint); display: inline-flex; gap: 7px; }
+.delta .a { color: var(--green); } .delta .m { color: var(--amber); } .delta .d { color: var(--red); }
+.tag { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: var(--r-pill); font-size: 11.5px; font-weight: 600; white-space: nowrap; text-transform: capitalize; }
+.tag svg.i { width: 11px; height: 11px; stroke-width: 2; }
+.tag.open { background: var(--blue-soft); color: var(--blue); }
+.tag.merged { background: var(--green-soft); color: var(--green); }
+.tag.discarded { background: var(--hover); color: var(--muted); }
+.tag.flag { background: var(--red-soft); color: var(--red); }
+.tag.ready { background: var(--green-soft); color: var(--green); }
+.tag.read { background: var(--blue-soft); color: var(--blue); }
+.tag.write { background: var(--amber-soft); color: var(--amber); }
+.tag.none { background: var(--red-soft); color: var(--red); }
+.empty { color: var(--muted); padding: 28px 16px; text-align: center; font-size: 13.5px; }
+
+/* ---------- detail ---------- */
+.detail { padding-top: 18px; }
+.eyebrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--faint); font: 12.5px var(--mono); margin-bottom: 18px; }
+.eyebrow a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--hairline); }
+.eyebrow a:hover { color: var(--ink); }
+h1.hero {
+  margin: 0 0 22px; font-weight: 600; letter-spacing: -.045em; line-height: 1.02; text-wrap: balance;
+  font-size: clamp(34px, 4.4vw, 58px);
+}
+h1.hero .l1 { display: block; color: var(--ink); }
+h1.hero .l2 { display: block; color: var(--ink-2); }
+h1.hero.subject { font-size: clamp(34px, 4vw, 54px); margin-bottom: 20px; }
+h1.hero.subject .l2 { font-size: .5em; letter-spacing: -.025em; line-height: 1.2; font-weight: 500; margin-top: 10px; max-width: 30ch; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+.stat {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: var(--r-pill);
+  background: var(--glass); border: 1px solid var(--hairline-2); color: var(--muted); font-size: 13px;
+}
+.stat b { color: var(--ink); font: 600 13px var(--mono); }
+.stat.bad, .stat.bad b { color: var(--red); }
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.stack > * { min-width: 0; }
+.notice {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; padding: 18px 20px; border-radius: var(--r-card);
+  border: 1px solid var(--hairline-2); background: var(--surface); box-shadow: var(--shadow-card);
+}
+.notice .ic { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; }
+.notice.bad .ic { background: var(--red-soft); color: var(--red); }
+.notice.ok .ic { background: var(--green-soft); color: var(--green); }
+.notice.info .ic { background: var(--blue-soft); color: var(--blue); }
+.notice.muted .ic { background: var(--hover); color: var(--muted); }
+.notice h3 { margin: 6px 0 4px; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.notice p { margin: 0; color: var(--muted); }
+.notice ul { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.notice li { color: var(--muted); overflow-wrap: anywhere; }
+.notice li b { color: var(--ink); font-weight: 600; }
+.notice q { color: var(--ink); }
+.notice .when { color: var(--faint); font: 12px var(--mono); margin-left: 8px; }
+.notice a { color: var(--ink); }
+
+.section-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 14px 4px 10px; flex-wrap: wrap; }
+.section-label h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.section-label span { color: var(--faint); font-size: 13px; }
+.card { background: var(--surface); border-radius: var(--r-card); box-shadow: var(--shadow-card); border: 1px solid var(--hairline-2); overflow: hidden; }
+
+/* diff window */
+.file + .file { border-top: 1px solid var(--hairline); }
+.file-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 18px; text-align: left; transition: background .2s; }
+.file-head:hover { background: var(--hover); }
+.file-head .chev { color: var(--faint); transition: transform .3s var(--ease); }
 .file[data-open="false"] .chev { transform: rotate(-90deg); }
 .file[data-open="false"] .diff { display: none; }
-.st { font: 600 11px/1 -apple-system, sans-serif; text-transform: uppercase; letter-spacing: .05em; padding: 3px 6px; border-radius: 5px; }
-.st.added { background: var(--add-bg); color: var(--add-text); }
-.st.modified { background: var(--warn-bg); color: var(--warn); }
-.st.deleted { background: var(--del-bg); color: var(--del-text); }
-.diff { overflow-x: auto; border-top: 1px solid var(--border); font: 12.5px/1.55 var(--mono); }
+.file-path { font: 13px var(--mono); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-path .dir { color: var(--faint); }
+.st-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.st-dot.added { background: var(--green); } .st-dot.modified { background: var(--amber); } .st-dot.deleted { background: var(--red); }
+.diff { overflow-x: auto; border-top: 1px solid var(--hairline-2); font: 12.5px/1.7 var(--mono); padding: 6px 0; }
 .diff table { border-collapse: collapse; width: 100%; }
-.diff td { padding: 0 12px; white-space: pre; vertical-align: top; }
-.diff td.sign { width: 1%; padding: 0 2px 0 6px; user-select: none; color: var(--faint); }
-.diff tr.add td.sign { color: var(--add-text); } .diff tr.del td.sign { color: var(--del-text); }
-.diff td.ln { width: 1%; color: var(--faint); text-align: right; user-select: none; padding: 0 8px; }
-.diff tr.add { background: var(--add-bg); } .diff tr.add td.code { color: var(--add-text); }
-.diff tr.del { background: var(--del-bg); } .diff tr.del td.code { color: var(--del-text); }
-.diff tr.hunk td { color: var(--hunk); background: var(--panel-2); padding-top: 3px; padding-bottom: 3px; }
-.binary { padding: 12px 16px; color: var(--muted); font-style: italic; }
+.diff td { padding: 0 14px; white-space: pre; vertical-align: top; }
+.diff td.ln { width: 1%; color: var(--faint); text-align: right; user-select: none; padding: 0 6px 0 12px; opacity: .8; }
+.diff td.sign { width: 1%; padding: 0 4px; user-select: none; color: var(--faint); }
+.diff tr.add { background: var(--add-bg); } .diff tr.add td.sign { color: var(--green); }
+.diff tr.del { background: var(--del-bg); } .diff tr.del td.sign { color: var(--red); }
+.diff tr.hunk td { color: var(--faint); padding-top: 6px; padding-bottom: 6px; font-size: 11.5px; }
+.binary { padding: 14px 18px; color: var(--muted); }
 
 /* policy */
-.rules { width: 100%; border-collapse: collapse; font-size: 13px; }
-.rules td, .rules th { padding: 7px 0; border-bottom: 1px solid var(--border); text-align: left; }
-.rules th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
-.rules tr:last-child td { border-bottom: 0; }
-.layer { color: var(--muted); font-size: 12.5px; margin: 14px 0 4px; }
-.layer:first-child { margin-top: 0; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.chip { font: 12px var(--mono); background: var(--panel-2); color: var(--muted); padding: 2px 8px; border-radius: 6px; }
+.rules { width: 100%; border-collapse: collapse; }
+.rules td { padding: 13px 20px; border-top: 1px solid var(--hairline-2); }
+.rules tr:first-child td { border-top: 0; }
+.rules td:last-child { text-align: right; }
+.layer-label { padding: 14px 20px 6px; color: var(--faint); font-size: 12.5px; border-top: 1px solid var(--hairline); }
+.layer-label:first-child { border-top: 0; }
+.guards { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 20px 18px; border-top: 1px solid var(--hairline-2); }
+.chip { font: 12px var(--mono); padding: 4px 9px; border-radius: 8px; background: var(--hover); color: var(--muted); overflow-wrap: anywhere; }
+.chip.ok { background: var(--green-soft); color: var(--green); }
 
 /* timeline */
-.timeline { list-style: none; margin: 0; padding: 0; }
-.ev { display: grid; grid-template-columns: 92px 16px 1fr; gap: 10px; padding: 7px 16px; align-items: start; font-size: 13px; }
-.ev + .ev { border-top: 1px solid var(--border); }
-.ev time { color: var(--faint); font: 12px var(--mono); padding-top: 1px; white-space: nowrap; }
-.ev .mark { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; background: var(--faint); }
-.ev.allowed .mark { background: var(--ok); }
-.ev.denied { background: var(--bad-bg); }
-.ev.denied .mark { background: var(--bad); }
-.ev .what b { font-weight: 600; }
-.ev .why { color: var(--bad); font-size: 12.5px; }
-.ev .actor { color: var(--muted); }
-.ev .path { font-family: var(--mono); font-size: 12.5px; }
+.timeline { list-style: none; margin: 0; padding: 6px 0; }
+.ev { display: grid; grid-template-columns: 84px 18px minmax(0, 1fr); gap: 10px; padding: 9px 20px; align-items: start; }
+.timeline.global .ev { grid-template-columns: 112px 18px minmax(0, 1fr); }
+.ev time { color: var(--faint); font: 12px var(--mono); padding-top: 2px; white-space: nowrap; }
+.ev .rail { position: relative; min-height: 18px; }
+.ev .rail::before { content: ""; position: absolute; left: 6px; top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.ev.allowed .rail::before { background: var(--green); }
+.ev.denied .rail::before { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+.ev .what { color: var(--muted); font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
+.ev .what b { color: var(--ink); font-weight: 600; }
+.ev .who { color: var(--ink); }
+.ev .path { font: 12.5px var(--mono); color: var(--ink); }
+.ev .why { color: var(--red); font-size: 12.5px; margin-top: 2px; }
+.ev .ws-ref { color: var(--faint); font: 12px var(--mono); }
+.ev.denied { background: linear-gradient(90deg, var(--red-soft), transparent 70%); }
 
-/* history */
-.ver { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 12px 16px; }
-.ver + .ver { border-top: 1px solid var(--border); }
-.vnum { font: 600 15px var(--mono); color: var(--muted); }
-.ver.head .vnum { color: var(--accent); }
-.vmsg { font-weight: 600; }
-.vmeta { color: var(--muted); font-size: 12.5px; }
-
-.toast {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
-  padding: 10px 16px; border-radius: 10px; font-weight: 500; box-shadow: 0 6px 24px rgba(0,0,0,.2); z-index: 20;
-  max-width: calc(100vw - 32px);
+/* ---------- dock ---------- */
+.dock {
+  position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 30;
+  display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--r-pill); max-width: calc(100vw - 32px);
+  background: var(--glass-strong); backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid var(--hairline); box-shadow: var(--shadow-pop); animation: dock-in .5s var(--ease) both;
 }
-.toast.bad { background: var(--bad); color: #fff; }
-.hidden { display: none !important; }
+.dock .who-note { color: var(--muted); font-size: 13px; padding: 0 10px 0 12px; white-space: nowrap; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px;
+  border-radius: var(--r-pill); font-weight: 600; font-size: 14px; white-space: nowrap;
+  transition: transform .2s var(--ease), box-shadow .2s, background .2s, opacity .2s;
+}
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.long { white-space: pre; }
+.btn.primary { background: var(--ink); color: var(--on-ink); box-shadow: 0 6px 20px rgba(17, 18, 20, .18); }
+.btn.primary:disabled { opacity: .35; transform: none; }
+.btn.ghost { color: var(--ink); background: var(--hover); }
+.btn.ghost:hover { background: var(--hairline); }
+.btn.danger { color: var(--red); background: var(--red-soft); }
+.btn.small { height: 34px; padding: 0 14px; font-size: 13px; }
+.ack { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: var(--r-pill); background: var(--red-soft); color: var(--red); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.ack input { accent-color: var(--red); width: 15px; height: 15px; margin: 0; }
+.reason { height: 44px; width: 280px; max-width: 46vw; padding: 0 16px; border-radius: var(--r-pill); border: 1px solid var(--hairline); background: var(--surface); outline: none; }
+.reason:focus { border-color: var(--ink-2); }
 
-.welcome { max-width: 520px; margin: 12vh auto 0; text-align: center; color: var(--muted); }
-.welcome h2 { color: var(--text); margin-bottom: 6px; }
-.welcome code { font-family: var(--mono); background: var(--panel-2); padding: 2px 6px; border-radius: 6px; }
+/* ---------- pages ---------- */
+.page { max-width: 980px; margin: 0 auto; padding: 24px 28px 120px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 30px; }
+.page-head h1.hero { margin: 0; }
+.lede { color: var(--muted); font-size: 17px; max-width: 560px; margin: 14px 0 0; }
+.ver { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 20px 22px; }
+.ver + .ver { border-top: 1px solid var(--hairline-2); }
+.vnum { font: 500 26px/1 var(--mono); color: var(--faint); letter-spacing: -.04em; }
+.ver.head .vnum { color: var(--ink); }
+.vmsg { font-weight: 600; letter-spacing: -.01em; font-size: 15px; overflow-wrap: anywhere; }
+.vmeta { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.vmeta a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--hairline); font-family: var(--mono); font-size: 12.5px; }
+.chain { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 16px 20px; color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--hairline); }
+.chain .mono { color: var(--ink); overflow-wrap: anywhere; }
 
-@media (max-width: 860px) {
-  .top { gap: 10px; padding: 0 16px; flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; }
-  .who { display: none; }
-  .layout { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--border); }
-  .main { padding: 18px 16px 48px; }
-  .ev { grid-template-columns: 1fr; gap: 2px; padding: 8px 12px; } .ev .mark { display: none; }
-  .ver { grid-template-columns: 44px 1fr; }
-  .ver .btn { grid-column: 2; justify-self: start; }
+/* ---------- palette ---------- */
+.scrim { position: fixed; inset: 0; z-index: 50; background: rgba(17, 18, 20, .18); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; justify-items: center; align-items: start; padding: 14vh 16px 16px; animation: fade .2s ease both; }
+.palette {
+  width: min(640px, 100%); border-radius: 26px; overflow: hidden;
+  background: var(--glass-strong); backdrop-filter: blur(30px) saturate(1.5); -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  border: 1px solid var(--hairline); box-shadow: var(--shadow-pop); animation: pop .35s var(--ease) both;
+}
+.palette-input { display: flex; align-items: center; gap: 12px; padding: 0 20px; height: 64px; border-bottom: 1px solid var(--hairline); color: var(--faint); }
+.palette-input input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font-size: 18px; letter-spacing: -.01em; color: var(--ink); }
+.palette-input input::placeholder { color: var(--faint); }
+.results { list-style: none; margin: 0; padding: 8px; max-height: 52vh; overflow: auto; }
+.result { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; cursor: pointer; }
+.result[aria-selected="true"] { background: var(--hover); }
+.result .avatar { width: 32px; height: 32px; border-radius: 10px; }
+.r-text { min-width: 0; }
+.r-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-sub { color: var(--faint); font: 12px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-kind { color: var(--faint); font-size: 12.5px; text-transform: capitalize; }
+.palette-foot { display: flex; justify-content: flex-end; gap: 16px; padding: 10px 18px; border-top: 1px solid var(--hairline); color: var(--faint); font-size: 12px; }
+.palette-foot span { display: inline-flex; gap: 6px; align-items: center; }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
+  display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: var(--r-pill);
+  background: var(--ink); color: var(--on-ink); font-weight: 500; box-shadow: var(--shadow-pop); max-width: calc(100vw - 32px);
+  animation: toast-in .35s var(--ease) both;
+}
+.toast.bad { background: var(--red); color: #fff; }
+
+.welcome { padding: 10vh 0; max-width: 560px; }
+.welcome code { font: 13px var(--mono); background: var(--hover); padding: 3px 8px; border-radius: 8px; overflow-wrap: anywhere; }
+
+/* ---------- motion ---------- */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes dock-in { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.enter > * { animation: rise .6s var(--ease) both; }
+.enter > *:nth-child(2) { animation-delay: .04s; } .enter > *:nth-child(3) { animation-delay: .08s; }
+.enter > *:nth-child(4) { animation-delay: .12s; } .enter > *:nth-child(n+5) { animation-delay: .16s; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- responsive ---------- */
+@media (max-width: 980px) {
+  .review { grid-template-columns: 1fr; gap: 18px; padding: 4px 16px 150px; }
+  .inbox { position: static; max-height: 380px; }
+  .page { padding: 12px 16px 120px; }
+}
+@media (max-width: 720px) {
+  :root { --top-h: 72px; }
+  .top { padding: 0 16px; grid-template-columns: auto 1fr auto; gap: 10px; }
+  .logo { width: 42px; height: 42px; }
+  .nav { justify-self: center; }
+  .tab { padding: 8px 11px; font-size: 13.5px; }
+  .tab .count { display: none; }
+  .search-label, .search-kbd, .integrity .label, .me { display: none; }
+  .pill-btn { padding: 0 12px; }
+  .ev, .timeline.global .ev { grid-template-columns: 1fr; gap: 2px; padding: 10px 16px; }
+  .ev .rail { display: none; }
+  .ver { grid-template-columns: 52px minmax(0, 1fr); padding: 16px; }
+  .ver > :last-child { grid-column: 2; justify-self: start; }
+  .vnum { font-size: 20px; }
+  .dock { left: 16px; right: 16px; transform: none; justify-content: flex-end; gap: 6px; padding: 6px; animation: fade .4s ease both; }
+  .dock:has(.reason) { flex-wrap: wrap; border-radius: 26px; }
+  .dock .long { display: none; }
+  .dock .btn, .dock .ack { height: 42px; padding: 0 14px; font-size: 13.5px; }
+  .dock .ack { margin-right: auto; }
+  .dock .who-note { display: none; }
+  .reason { width: 100%; max-width: none; }
+  .toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  .stats { gap: 6px; }
+  .stat { height: 30px; padding: 0 11px; font-size: 12.5px; }
+}
+@media (max-width: 420px) {
+  .tab { padding: 8px 9px; font-size: 13px; }
+  .integrity { display: none; }
 }
 </style>
 </head>
 <body>
 <header class="top">
-  <div class="brand">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3.5v6c0 5-3.4 9-8 10.5C7.4 20.5 4 16.5 4 11.5v-6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
-    tether
-  </div>
-  <nav class="tabs" aria-label="Sections">
-    <button class="tab" data-route="review">Review</button>
+  <a class="logo" href="#/review" aria-label="tether home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="7" cy="7" r="3.2"/><circle cx="17" cy="17" r="3.2"/><path d="M9.3 9.3c2.2 2.2 3.2 3.2 5.4 5.4"/>
+    </svg>
+  </a>
+  <nav class="nav" aria-label="Sections">
+    <button class="tab" data-route="review">Review <span class="count hidden" id="open-count"></span></button>
     <button class="tab" data-route="history">History</button>
-    <button class="tab" data-route="activity">Activity</button>
+    <button class="tab" data-route="activity">Audit log</button>
   </nav>
-  <div class="spacer"></div>
-  <span class="who">Reviewing as <b id="reviewer"></b></span>
-  <button id="integrity" class="integrity hidden" title="Recheck the audit log"></button>
+  <div class="right">
+    <button class="pill-btn" id="open-palette" aria-label="Search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg><span class="search-label">Search</span><kbd class="search-kbd">⌘K</kbd></button>
+    <button class="pill-btn integrity" id="integrity" title="Recheck the audit log"><span class="dot"></span><span class="label">Checking log…</span></button>
+    <span class="me" id="me" title=""></span>
+  </div>
 </header>
 
-<div id="view-review" class="layout">
-  <aside class="sidebar">
-    <div class="side-head">
-      <h2>Workspaces</h2>
+<main id="view-review" class="review">
+  <aside class="inbox" aria-label="Workspaces">
+    <div class="inbox-head">
+      <h2>Workspaces<span id="inbox-count"></span></h2>
       <div class="seg" role="group" aria-label="Filter">
         <button data-filter="open" aria-pressed="true">Open</button>
         <button data-filter="all" aria-pressed="false">All</button>
@@ -240,11 +436,13 @@ h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.015em; display: flex; a
     </div>
     <ul id="ws-list" class="ws-list"></ul>
   </aside>
-  <main id="detail" class="main"></main>
-</div>
-<main id="view-history" class="main hidden"></main>
-<main id="view-activity" class="main hidden"></main>
-<div id="toast" class="toast hidden" role="status"></div>
+  <section id="detail" class="detail" aria-live="polite"></section>
+</main>
+<main id="view-history" class="page hidden"></main>
+<main id="view-activity" class="page hidden"></main>
+<div id="dock" class="dock hidden"></div>
+<div id="palette-root"></div>
+<div id="toast-root"></div>
 
 <script>
 "use strict";
@@ -252,7 +450,7 @@ const TOKEN = "__TETHER_TOKEN__";
 const REVIEWER = "__TETHER_REVIEWER__";
 const state = { filter: "open", workspaces: [], selected: null, deniedOnly: false };
 
-// ---- tiny DOM builder: all data goes through textContent, never innerHTML ----
+// ---- DOM helpers: all data goes through textContent, never innerHTML ----
 function el(tag, attrs, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -267,29 +465,33 @@ function el(tag, attrs, ...children) {
   }
   return node;
 }
-const svg = (d, size = 14) => {
-  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  s.setAttribute("width", size); s.setAttribute("height", size); s.setAttribute("viewBox", "0 0 24 24");
-  s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "2.2");
-  s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
-  const p = document.createElementNS("http://www.w3.org/2000/svg", "path"); p.setAttribute("d", d); s.append(p);
-  return s;
-};
-const ICON = {
-  chev: "M6 9l6 6 6-6",
-  flag: "M4 22V4m0 0h12l-2 4 2 4H4",
-};
-
 function mount(node, ...children) {
   node.replaceChildren(...children.flat(Infinity).filter(c => c !== null && c !== undefined && c !== false));
 }
-
+const ICONS = {
+  flag: ["M5 21V4", "M5 4h11l-2 4 2 4H5"],
+  chev: ["M6 9l6 6 6-6"],
+  check: ["M5 12.5l4.5 4.5L19 7.5"],
+  x: ["M6 6l12 12", "M18 6L6 18"],
+  note: ["M7 4h10a2 2 0 0 1 2 2v12l-4-3H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"],
+  search: ["M11 17.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z", "M20 20l-4-4"],
+};
+function icon(name, cls) {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "i" + (cls ? " " + cls : "")); s.setAttribute("aria-hidden", "true");
+  for (const d of ICONS[name]) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path"); p.setAttribute("d", d); s.append(p);
+  }
+  return s;
+}
+const shortAgent = a => String(a).replace(/^(agent|user|policy):/, "");
+const initials = a => shortAgent(a).split(/[-_.\s:]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("") || "?";
 function fmtTime(ts, withDate) {
   const d = new Date(ts);
   if (isNaN(d)) return ts;
-  const opts = withDate ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
-                        : { hour: "2-digit", minute: "2-digit", second: "2-digit" };
-  return d.toLocaleString(undefined, opts);
+  return d.toLocaleString(undefined, withDate
+    ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }
+    : { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 function ago(ts) {
   const s = (Date.now() - new Date(ts)) / 1000;
@@ -298,6 +500,7 @@ function ago(ts) {
   if (s < 86400) return Math.floor(s / 3600) + "h ago";
   return Math.floor(s / 86400) + "d ago";
 }
+const plural = (n, word) => `${n} ${n === 1 ? word : word.endsWith("y") ? word.slice(0, -1) + "ies" : word + "s"}`;
 
 async function api(path, body) {
   const opts = body === undefined ? {} : {
@@ -312,18 +515,17 @@ async function api(path, body) {
 
 let toastTimer;
 function toast(msg, bad) {
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.className = "toast" + (bad ? " bad" : "");
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 4200);
+  const root = document.getElementById("toast-root");
+  mount(root, el("div", { class: "toast" + (bad ? " bad" : ""), role: "status" }, icon(bad ? "x" : "check"), msg));
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => mount(root), 3800);
 }
 
 // ---- routing ----
 function route() {
   const [, view = "review", id] = location.hash.split("/");
-  for (const v of ["review", "history", "activity"]) {
-    document.getElementById("view-" + v).classList.toggle("hidden", v !== view);
-  }
+  for (const v of ["review", "history", "activity"]) document.getElementById("view-" + v).classList.toggle("hidden", v !== view);
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-current", t.dataset.route === view ? "page" : "false"));
+  if (view !== "review") document.getElementById("dock").classList.add("hidden");
   if (view === "history") return loadHistory();
   if (view === "activity") return loadActivity();
   state.selected = id || null;
@@ -332,253 +534,286 @@ function route() {
 document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
   location.hash = "#/" + t.dataset.route + (t.dataset.route === "review" && state.selected ? "/" + state.selected : "");
 }));
-document.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => {
-  state.filter = b.dataset.filter;
-  document.querySelectorAll("[data-filter]").forEach(x => x.setAttribute("aria-pressed", x === b));
+document.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => setFilter(b.dataset.filter)));
+function setFilter(f) {
+  state.filter = f;
+  document.querySelectorAll("[data-filter]").forEach(x => x.setAttribute("aria-pressed", x.dataset.filter === f));
   renderList();
-}));
+}
 window.addEventListener("hashchange", route);
 
-// ---- integrity badge ----
+// ---- integrity ----
 async function loadIntegrity() {
-  const b = document.getElementById("integrity");
+  const b = document.getElementById("integrity"), label = b.querySelector(".label");
   try {
     const r = await api("/api/verify");
-    b.className = "integrity " + (r.ok ? "ok" : "bad");
-    b.replaceChildren(el("span", { class: "dot" }),
-      r.ok ? `Audit log verified · ${r.entries} entries` : `Audit log tampered (${r.problems.length})`);
-    b.title = r.ok ? "Head " + r.head : r.problems.join("\n");
+    b.className = "pill-btn integrity " + (r.ok ? "ok" : "bad");
+    label.textContent = r.ok ? `Log verified · ${r.entries}` : `Log tampered · ${r.problems.length}`;
+    b.title = r.ok ? `Audit chain intact. Head ${r.head}` : r.problems.join("\n");
   } catch (e) {
-    b.className = "integrity bad"; b.replaceChildren(el("span", { class: "dot" }), "Audit log unavailable");
+    b.className = "pill-btn integrity bad"; label.textContent = "Log unavailable";
   }
 }
-document.getElementById("integrity").addEventListener("click", loadIntegrity);
+document.getElementById("integrity").addEventListener("click", () => { loadIntegrity(); location.hash = "#/activity"; });
 
-// ---- workspace list ----
+// ---- inbox ----
 async function loadWorkspaces() {
   try { state.workspaces = await api("/api/workspaces"); }
   catch (e) { return toast(e.message, true); }
+  const open = state.workspaces.filter(w => w.status === "open");
+  const count = document.getElementById("open-count");
+  count.textContent = open.length; count.classList.toggle("hidden", !open.length);
   if (!state.selected) {
-    const open = state.workspaces.filter(w => w.status === "open");
     const first = open.find(w => w.flags) || open[0] || state.workspaces[0];
     if (first) { history.replaceState(null, "", "#/review/" + first.id); state.selected = first.id; }
   }
   const sel = state.workspaces.find(w => w.id === state.selected);
-  if (sel && sel.status !== "open" && state.filter === "open") {
-    state.filter = "all";
-    document.querySelectorAll("[data-filter]").forEach(x => x.setAttribute("aria-pressed", x.dataset.filter === "all"));
-  }
-  renderList();
+  if (sel && sel.status !== "open" && state.filter === "open") setFilter("all"); else renderList();
   loadDetail();
 }
 
-function counts(c) {
-  return el("span", { class: "counts" },
-    el("span", { class: "c-add", title: "added" }, "+" + c.added),
-    el("span", { class: "c-mod", title: "modified" }, "~" + c.modified),
-    el("span", { class: "c-del", title: "deleted" }, "−" + c.deleted));
+function delta(c) {
+  return el("span", { class: "delta" },
+    el("span", { class: "a", title: "added" }, "+" + c.added),
+    el("span", { class: "m", title: "modified" }, "~" + c.modified),
+    el("span", { class: "d", title: "deleted" }, "−" + c.deleted));
 }
 
 function renderList() {
   const list = document.getElementById("ws-list");
   const rows = state.workspaces.filter(w => state.filter === "all" || w.status === "open");
+  document.getElementById("inbox-count").textContent = rows.length || "";
   if (!rows.length) {
-    mount(list, el("li", { class: "empty" }, state.filter === "open" ? "Nothing waiting for review." : "No workspaces yet."));
+    mount(list, el("li", { class: "empty" }, state.filter === "open" ? "You're all caught up. Nothing is waiting for review." : "No workspaces yet."));
     return;
   }
-  mount(list, ...rows.map(w => el("li", {},
-    el("button", {
-      class: "ws-item", "aria-current": w.id === state.selected ? "true" : "false",
-      onclick: () => { location.hash = "#/review/" + w.id; },
-    },
-      el("div", { class: "ws-row" },
-        el("span", { class: "ws-agent" }, w.agent),
-        w.flags ? el("span", { class: "pill flag", title: "guardrail flags" }, svg(ICON.flag, 11), w.flags) : null,
-        w.status === "open" && w.submitted_at ? el("span", { class: "pill ready", title: "agent submitted for review" }, "ready") : null,
-        el("span", { class: "pill " + w.status }, w.status)),
-      el("div", { class: "ws-task" }, w.task || w.id),
-      el("div", { class: "ws-row" }, counts(w.changes), el("span", { class: "spacer" }),
-        el("span", { class: "counts" }, ago(w.created)))))));
+  mount(list, rows.map(w => el("li", {},
+    el("button", { class: "ws", "aria-current": w.id === state.selected ? "true" : "false", onclick: () => { location.hash = "#/review/" + w.id; } },
+      el("span", { class: "avatar" }, initials(w.agent)),
+      el("span", { class: "ws-body" },
+        el("span", { class: "ws-top" }, el("span", { class: "ws-name" }, shortAgent(w.agent)), el("span", { class: "ws-time" }, ago(w.created))),
+        el("span", { class: "ws-task" }, w.task || w.id),
+        el("span", { class: "ws-meta" },
+          delta(w.changes),
+          w.flags ? el("span", { class: "tag flag" }, icon("flag"), w.flags) : null,
+          w.status === "open" && w.submitted_at ? el("span", { class: "tag ready" }, "Ready") : null,
+          w.status !== "open" ? el("span", { class: "tag " + w.status }, w.status) : null))))));
 }
 
-// ---- workspace detail ----
+// ---- detail ----
+function countLines(lines) {
+  let add = 0, del = 0;
+  for (const l of lines) {
+    if (l.startsWith("+") && !l.startsWith("+++")) add++;
+    else if (l.startsWith("-") && !l.startsWith("---")) del++;
+  }
+  return { add, del };
+}
+
 async function loadDetail() {
   const main = document.getElementById("detail");
+  const dock = document.getElementById("dock");
   if (!state.selected) {
-    mount(main, el("div", { class: "welcome" },
-      el("h2", {}, "No agent workspaces yet"),
-      el("p", {}, "Create one and it will show up here for review:"),
+    dock.classList.add("hidden");
+    mount(main, el("div", { class: "welcome enter" },
+      el("h1", { class: "hero" }, el("span", { class: "l1" }, "No agents yet."), el("span", { class: "l2" }, "Give one a workspace.")),
+      el("p", { class: "lede" }, "Create a workspace and it shows up here for review."),
       el("p", {}, el("code", {}, "tether create --agent agent:bot --read 'docs/**' --write 'out/**'"))));
     return;
   }
   let w;
   try { w = await api("/api/workspaces/" + state.selected); }
-  catch (e) { mount(main, el("div", { class: "welcome" }, el("h2", {}, "Workspace not found"), el("p", {}, e.message))); return; }
+  catch (e) {
+    dock.classList.add("hidden");
+    mount(main, el("div", { class: "welcome" }, el("h1", { class: "hero" }, el("span", { class: "l1" }, "Not found."), el("span", { class: "l2" }, e.message))));
+    return;
+  }
   const denied = w.activity.filter(e => e.outcome === "denied").length;
-  mount(main, 
-    el("div", { class: "crumbs" }, w.id + (w.parent ? "  ·  forked from " + w.parent : "")),
-    el("h1", {}, w.agent, el("span", { class: "pill " + w.status }, w.status)),
-    w.task ? el("p", { class: "task" }, w.task) : null,
-    el("div", { class: "meta" },
-      el("span", {}, "Forked from ", el("b", {}, "v" + w.base_version), " · ", ago(w.created)),
-      el("span", {}, el("b", {}, w.counters.reads), " reads"),
-      el("span", {}, el("b", {}, w.counters.writes), " writes"),
-      el("span", {}, el("b", {}, w.files.length), " files changed"),
-      denied ? el("span", { class: "denied" }, el("b", {}, denied), " denied") : null),
-    flagsBlock(w),
-    w.status === "open" && w.submitted_at ? el("div", { class: "alert info" },
-      el("h3", {}, "Agent submitted this for review · " + ago(w.submitted_at)),
-      w.submit_note ? el("div", {}, "“", w.submit_note, "”") : el("div", { class: "vmeta" }, "No note.")) : null,
-    decisionBlock(w),
-    changesCard(w),
-    policyCard(w),
-    activityCard(w.activity, "Agent activity", `${w.activity.length} events in this workspace`));
+  const total = w.files.reduce((acc, f) => { const c = countLines(f.lines); acc.add += c.add; acc.del += c.del; return acc; }, { add: 0, del: 0 });
+
+  mount(main, el("div", { class: "enter" },
+    el("div", { class: "eyebrow" },
+      el("span", { class: "tag " + w.status }, w.status),
+      el("span", {}, w.id),
+      w.parent ? el("span", {}, "forked from ", el("a", { href: "#/review/" + w.parent }, w.parent)) : null),
+    el("h1", { class: "hero subject" }, el("span", { class: "l1" }, shortAgent(w.agent)), el("span", { class: "l2" }, w.task || "No task description")),
+    el("div", { class: "stats" },
+      el("span", { class: "stat" }, "from", el("b", {}, "v" + w.base_version)),
+      el("span", { class: "stat" }, el("b", {}, w.counters.reads), "reads"),
+      el("span", { class: "stat" }, el("b", {}, w.counters.writes), "writes"),
+      el("span", { class: "stat" }, el("b", {}, `+${total.add} −${total.del}`), `in ${plural(w.files.length, "file")}`),
+      denied ? el("span", { class: "stat bad" }, el("b", {}, denied), "denied") : null,
+      el("span", { class: "stat" }, `opened ${ago(w.created)}`)),
+    el("div", { class: "stack" },
+      statusNotice(w),
+      flagsNotice(w),
+      w.status === "open" && w.submitted_at ? el("div", { class: "notice info" },
+        el("span", { class: "ic" }, icon("note")),
+        el("div", {}, el("h3", {}, "Submitted for review", el("span", { class: "when" }, ago(w.submitted_at))),
+          w.submit_note ? el("p", {}, el("q", {}, w.submit_note)) : el("p", {}, "The agent left no note."))) : null,
+      changesSection(w),
+      policySection(w),
+      activitySection(w.activity, "Activity", plural(w.activity.length, "event"), false))));
+  renderDock(w);
 }
 
-function flagsBlock(w) {
-  if (!w.flag_list.length) return null;
-  return el("div", { class: "alert bad" },
-    el("h3", {}, svg(ICON.flag), `${w.flag_list.length} guardrail flag${w.flag_list.length > 1 ? "s" : ""} — the agent tried something outside its task`),
-    el("ul", {}, w.flag_list.map(f => el("li", {},
-      el("b", {}, f.action), " ", f.path ? el("code", {}, f.path) : null, " — ", f.reason,
-      el("span", { class: "vmeta" }, "  " + fmtTime(f.ts))))));
-}
-
-function decisionBlock(w) {
+function statusNotice(w) {
   if (w.status === "merged") {
-    return el("div", { class: "alert ok" }, el("h3", {}, `Merged as v${w.merged_version}`),
-      el("div", {}, `Approved by ${w.closed_by} · ${fmtTime(w.closed_at, true)}. `,
-        el("a", { href: "#/history" }, "View history or roll back")));
+    const auto = w.closed_by === "policy:auto-approve";
+    return el("div", { class: "notice ok" }, el("span", { class: "ic" }, icon("check")),
+      el("div", {}, el("h3", {}, `Merged as v${w.merged_version}`),
+        el("p", {}, auto ? "Approved automatically by policy" : `Approved by ${w.closed_by}`, ` · ${fmtTime(w.closed_at, true)} · `,
+          el("a", { href: "#/history" }, "View history or roll back"))));
   }
   if (w.status === "discarded") {
-    return el("div", { class: "alert muted" }, el("h3", {}, "Discarded"),
-      el("div", {}, `By ${w.closed_by} · ${fmtTime(w.closed_at, true)}. The real files were never touched.`));
+    return el("div", { class: "notice muted" }, el("span", { class: "ic" }, icon("x")),
+      el("div", {}, el("h3", {}, "Discarded"),
+        el("p", {}, `By ${w.closed_by} · ${fmtTime(w.closed_at, true)}. The real files were never touched.`)));
   }
+  return null;
+}
+
+function flagsNotice(w) {
+  if (!w.flag_list.length) return null;
+  return el("div", { class: "notice bad" }, el("span", { class: "ic" }, icon("flag")),
+    el("div", {},
+      el("h3", {}, w.flag_list.length === 1 ? "The agent tried something outside its task" : `The agent went off-task ${w.flag_list.length} times`),
+      el("ul", {}, w.flag_list.map(f => el("li", {},
+        el("b", {}, f.action), " ", f.path ? el("span", { class: "mono" }, f.path) : null, " — ", f.reason,
+        el("span", { class: "when" }, fmtTime(f.ts)))))));
+}
+
+function renderDock(w) {
+  const dock = document.getElementById("dock");
+  if (w.status !== "open") { dock.classList.add("hidden"); return; }
   const selfReview = REVIEWER === w.agent;
   const ack = w.flags ? el("input", { type: "checkbox", id: "ack" }) : null;
-  const merge = el("button", { class: "btn primary", disabled: selfReview || !!w.flags }, "Approve & merge");
-  const discard = el("button", { class: "btn danger" }, "Discard");
-  const reason = el("input", { class: "reason hidden", placeholder: "Reason for discarding (optional)", maxlength: "500" });
-  const confirmDiscard = el("button", { class: "btn danger hidden" }, "Confirm discard");
-  if (ack) ack.addEventListener("change", () => { merge.disabled = !ack.checked; });
+  const merge = el("button", { class: "btn primary", disabled: selfReview || !!w.flags || !w.files.length }, icon("check"), el("span", {}, "Approve", el("span", { class: "long" }, " & merge")));
+  const discard = el("button", { class: "btn ghost" }, "Discard");
+  const reason = el("input", { class: "reason", id: "discard-reason", placeholder: "Why are you discarding this?", maxlength: "500" });
+  const confirmDiscard = el("button", { class: "btn danger" }, "Discard workspace");
+  const cancel = el("button", { class: "btn ghost" }, "Cancel");
+  if (ack) ack.addEventListener("change", () => { merge.disabled = !ack.checked || !w.files.length; });
 
+  const note = selfReview ? "You can't approve your own agent's changes" : w.files.length ? `Merging writes ${plural(w.files.length, "file")} to disk` : "Nothing to merge yet";
+  const normal = () => mount(dock,
+    el("span", { class: "who-note" }, note),
+    ack ? el("label", { class: "ack" }, ack, el("span", {}, el("span", { class: "long" }, "I "), "reviewed ", el("span", { class: "long" }, "the "), w.flags === 1 ? "flag" : w.flags + " flags")) : null,
+    discard, merge);
   merge.addEventListener("click", async () => {
     merge.disabled = true;
-    try {
-      const r = await api(`/api/workspaces/${w.id}/merge`, { allow_flagged: !!(ack && ack.checked) });
-      toast(`Merged into the real files as v${r.version}`);
-    } catch (e) { toast(e.message, true); }
+    try { const r = await api(`/api/workspaces/${w.id}/merge`, { allow_flagged: !!(ack && ack.checked) }); toast(`Merged as v${r.version}`); }
+    catch (e) { toast(e.message, true); }
     loadIntegrity(); loadWorkspaces();
   });
-  discard.addEventListener("click", () => {
-    discard.classList.add("hidden"); reason.classList.remove("hidden"); confirmDiscard.classList.remove("hidden"); reason.focus();
-  });
+  discard.addEventListener("click", () => { mount(dock, reason, cancel, confirmDiscard); reason.focus(); });
+  cancel.addEventListener("click", normal);
+  reason.addEventListener("keydown", e => { if (e.key === "Enter") confirmDiscard.click(); if (e.key === "Escape") normal(); });
   confirmDiscard.addEventListener("click", async () => {
     confirmDiscard.disabled = true;
     try { await api(`/api/workspaces/${w.id}/discard`, { reason: reason.value.trim() || null }); toast("Workspace discarded"); }
     catch (e) { toast(e.message, true); }
     loadIntegrity(); loadWorkspaces();
   });
-
-  return el("div", { class: "card" },
-    el("div", { class: "card-head" }, el("h3", {}, "Decision"),
-      el("span", { class: "sub" }, w.files.length ? "Merging applies these changes to the real files as a new version." : "No changes to merge.")),
-    el("div", { class: "decide" },
-      ack ? el("label", { class: "check" }, ack, `I've reviewed the ${w.flags} flag${w.flags > 1 ? "s" : ""}`) : null,
-      merge, discard, reason, confirmDiscard,
-      selfReview ? el("span", { class: "vmeta" }, "You can't approve your own agent's changes.") : null));
+  normal();
+  dock.classList.remove("hidden");
 }
 
 function diffTable(lines) {
   let oldN = 0, newN = 0;
   const rows = [];
   const row = (cls, a, b, sign, code) => el("tr", { class: cls },
-    el("td", { class: "ln" }, a), el("td", { class: "ln" }, b), el("td", { class: "sign" }, sign), el("td", { class: "code" }, code));
+    el("td", { class: "ln" }, a), el("td", { class: "ln" }, b), el("td", { class: "sign" }, sign), el("td", {}, code));
   for (const line of lines) {
     if (line.startsWith("---") || line.startsWith("+++")) continue;
     if (line.startsWith("@@")) {
       const m = /@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
       if (m) { oldN = +m[1]; newN = +m[2]; }
-      rows.push(el("tr", { class: "hunk" }, el("td", { colspan: "3" }), el("td", { class: "code" }, line)));
-    } else if (line.startsWith("+")) {
-      rows.push(row("add", "", newN++, "+", line.slice(1)));
-    } else if (line.startsWith("-")) {
-      rows.push(row("del", oldN++, "", "−", line.slice(1)));
-    } else if (line.startsWith("\\")) {
-      rows.push(row("", "", "", "", line));
-    } else {
-      rows.push(row("", oldN++, newN++, "", line.slice(1)));
-    }
+      rows.push(el("tr", { class: "hunk" }, el("td", { colspan: "3" }), el("td", {}, line)));
+    } else if (line.startsWith("+")) rows.push(row("add", "", newN++, "+", line.slice(1)));
+    else if (line.startsWith("-")) rows.push(row("del", oldN++, "", "−", line.slice(1)));
+    else if (line.startsWith("\\")) rows.push(row("", "", "", "", line));
+    else rows.push(row("", oldN++, newN++, "", line.slice(1)));
   }
   return el("div", { class: "diff" }, el("table", {}, el("tbody", {}, rows)));
 }
 
-function changesCard(w) {
-  const body = w.files.length
-    ? w.files.map(f => {
-        const box = el("div", { class: "file", "data-open": "true" });
-        const head = el("button", { class: "file-head", "aria-expanded": "true" },
-          el("span", { class: "chev" }, svg(ICON.chev)), el("span", { class: "st " + f.status }, f.status), f.path);
-        head.addEventListener("click", () => {
-          const open = box.dataset.open !== "true";
-          box.dataset.open = open; head.setAttribute("aria-expanded", open);
-        });
-        box.append(head, f.binary ? el("div", { class: "binary" }, "Binary file changed") : diffTable(f.lines));
-        return box;
-      })
-    : [el("div", { class: "card-body vmeta" }, "The agent hasn't changed anything.")];
-  const tally = ["added", "modified", "deleted"].filter(s => w.changes[s]).map(s => `${w.changes[s]} ${s}`).join(", ");
-  return el("div", { class: "card" },
-    el("div", { class: "card-head" }, el("h3", {}, "Changes"), el("span", { class: "sub" }, tally || "none")),
-    el("div", {}, body));
+function pathLabel(p) {
+  const i = p.lastIndexOf("/");
+  return el("span", { class: "file-path" }, i >= 0 ? el("span", { class: "dir" }, p.slice(0, i + 1)) : null, p.slice(i + 1));
 }
 
-function policyCard(w) {
-  const layers = w.policies.map((p, i) => [
-    w.policies.length > 1 ? el("div", { class: "layer" },
-      i === 0 ? "Inherited from the root workspace" : i === w.policies.length - 1 ? "This workspace (access is the intersection of all layers)" : `Layer ${i + 1}`) : null,
+function changesSection(w) {
+  const body = w.files.length ? w.files.map(f => {
+    const box = el("div", { class: "file", "data-open": "true" });
+    const c = countLines(f.lines);
+    const head = el("button", { class: "file-head", "aria-expanded": "true" },
+      el("span", { class: `st-dot ${f.status}`, title: f.status }), pathLabel(f.path),
+      el("span", { class: "delta" }, el("span", { class: "a" }, "+" + c.add), el("span", { class: "d" }, "−" + c.del)),
+      icon("chev", "chev"));
+    head.addEventListener("click", () => {
+      const open = box.dataset.open !== "true";
+      box.dataset.open = open; head.setAttribute("aria-expanded", open);
+    });
+    box.append(head, f.binary ? el("div", { class: "binary" }, "Binary file changed") : diffTable(f.lines));
+    return box;
+  }) : [el("div", { class: "empty" }, "The agent hasn't changed anything yet.")];
+  const tally = ["added", "modified", "deleted"].filter(s => w.changes[s]).map(s => `${w.changes[s]} ${s}`).join(" · ");
+  return el("div", {},
+    el("div", { class: "section-label" }, el("h2", {}, "Changes"), el("span", {}, tally || "none")),
+    el("div", { class: "card" }, body));
+}
+
+function policySection(w) {
+  const many = w.policies.length > 1;
+  const blocks = w.policies.map((p, i) => [
+    many ? el("div", { class: "layer-label" },
+      i === 0 ? "Inherited from the parent workspace" : i === w.policies.length - 1 ? "This workspace · access is the intersection of every layer" : `Layer ${i + 1}`) : null,
     p.rules.length
-      ? el("table", { class: "rules" },
-          el("thead", {}, el("tr", {}, el("th", {}, "Path"), el("th", {}, "Access"))),
-          el("tbody", {}, p.rules.map(r => el("tr", {},
-            el("td", { class: "mono" }, r.path), el("td", {}, el("span", { class: "pill " + r.access }, r.access))))))
-      : el("div", { class: "vmeta" }, "No rules — nothing is accessible."),
-    el("div", { class: "chips" }, Object.entries(p.guardrails).filter(([, v]) => v !== null && v !== false)
-      .map(([k, v]) => el("span", { class: "chip" }, v === true ? k : `${k}=${v}`))),
-    p.auto_approve ? el("div", { class: "vmeta", style: "margin-top:10px" },
-      "Auto-approves on submit: ", el("span", { class: "mono" }, p.auto_approve.paths.join(", ")),
-      p.auto_approve.max_changes !== null ? ` · up to ${p.auto_approve.max_changes} files` : "",
-      p.auto_approve.allow_deletes ? " · deletes allowed" : " · no deletes") : null,
+      ? el("table", { class: "rules" }, el("tbody", {}, p.rules.map(r =>
+          el("tr", {}, el("td", { class: "mono" }, r.path), el("td", {}, el("span", { class: "tag " + r.access }, r.access))))))
+      : el("div", { class: "empty" }, "No rules. Nothing is accessible."),
+    el("div", { class: "guards" },
+      Object.entries(p.guardrails).filter(([, v]) => v !== null && v !== false)
+        .map(([k, v]) => el("span", { class: "chip" }, v === true ? k.replace(/_/g, " ") : `${k.replace(/_/g, " ")} ${v}`)),
+      p.auto_approve ? el("span", { class: "chip ok" },
+        "auto-approve ", p.auto_approve.paths.join(", "),
+        p.auto_approve.max_changes !== null ? ` · ≤${p.auto_approve.max_changes} files` : "",
+        p.auto_approve.allow_deletes ? " · deletes ok" : "") : null),
   ]);
-  return el("div", { class: "card" },
-    el("div", { class: "card-head" }, el("h3", {}, "Access policy"), el("span", { class: "sub" }, "Deny by default · last matching rule wins")),
-    el("div", { class: "card-body" }, layers));
+  return el("div", {},
+    el("div", { class: "section-label" }, el("h2", {}, "Access"), el("span", {}, "Deny by default · last matching rule wins")),
+    el("div", { class: "card" }, blocks));
 }
 
-function describe(e, showWs) {
-  const verb = { read: "read", write: "wrote", delete: "deleted", list: "listed files", create: "created workspace",
-    fork: "forked workspace", merge: "merged", submit: "submitted for review", token: "issued agent token",
-    revoke: "revoked agent tokens", auto_approve: "auto-approve skipped", auth: "rejected token", gc: "garbage collected", discard: "discarded workspace", rollback: "rolled back",
-    snapshot: "snapshot", init: "initialized repository" }[e.action] || e.action;
-  const bits = [el("span", { class: "actor" }, e.actor), " ", el("b", {}, e.outcome === "denied" ? "tried to " + e.action : verb)];
-  if (e.path) bits.push(" ", el("span", { class: "path" }, e.path));
-  if (e.prefix) bits.push(" ", el("span", { class: "path" }, e.prefix));
-  if (e.action === "list" && e.count !== undefined) bits.push(` (${e.count} visible)`);
-  if (e.version !== undefined && e.action !== "read") bits.push(` → v${e.version}`);
-  if (e.bytes !== undefined) bits.push(el("span", { class: "vmeta" }, `  ${e.bytes} bytes`));
-  if (e.workspace && showWs) bits.push(el("span", { class: "vmeta" }, "  " + e.workspace));
-  return bits;
+function describe(e, global) {
+  const verb = { read: "read", write: "wrote", delete: "deleted", list: "listed", create: "created the workspace",
+    fork: "forked the workspace", merge: "merged", discard: "discarded the workspace", rollback: "rolled back",
+    snapshot: "recorded a snapshot", init: "started tracking the drive", submit: "submitted for review",
+    token: "issued an agent token", revoke: "revoked agent tokens", auto_approve: "skipped auto-approve",
+    auth: "rejected an invalid token", gc: "cleaned up storage" }[e.action] || e.action;
+  const out = [el("span", { class: "who" }, shortAgent(e.actor)), " ", el("b", {}, e.outcome === "denied" ? "tried to " + e.action : verb)];
+  if (e.path) out.push(" ", el("span", { class: "path" }, e.path));
+  if (e.prefix) out.push(" ", el("span", { class: "path" }, e.prefix));
+  if (e.action === "list" && e.count !== undefined) out.push(` · ${plural(e.count, "file")} visible`);
+  if (e.version !== undefined && e.action !== "read") out.push(` → v${e.version}`);
+  if (e.bytes !== undefined) out.push(` · ${e.bytes.toLocaleString()} bytes`);
+  if (global && e.workspace) out.push(" ", el("span", { class: "ws-ref" }, e.workspace));
+  return out;
 }
 
-function activityCard(entries, title, sub, global) {
-  const items = entries.length ? entries.map(e => el("li", { class: "ev " + (e.outcome || "") },
+function timeline(entries, global) {
+  return el("ul", { class: "timeline" + (global ? " global" : "") }, entries.length ? entries.map(e => el("li", { class: "ev " + (e.outcome || "") },
     el("time", { datetime: e.ts, title: e.ts }, fmtTime(e.ts, global)),
-    el("span", { class: "mark" }),
+    el("span", { class: "rail" }),
     el("div", { class: "what" }, describe(e, global), e.reason ? el("div", { class: "why" }, e.reason) : null)))
-    : [el("li", { class: "empty" }, "No events.")];
-  return el("div", { class: "card" },
-    el("div", { class: "card-head" }, el("h3", {}, title), sub),
-    el("ul", { class: "timeline" }, items));
+    : el("li", { class: "empty" }, "No events."));
+}
+
+function activitySection(entries, title, sub, global) {
+  return el("div", {},
+    el("div", { class: "section-label" }, el("h2", {}, title), el("span", {}, sub)),
+    el("div", { class: "card" }, timeline(entries, global)));
 }
 
 // ---- history ----
@@ -587,48 +822,122 @@ async function loadHistory() {
   let versions;
   try { versions = await api("/api/history"); } catch (e) { return toast(e.message, true); }
   const head = versions.length ? versions[0].version : -1;
-  mount(main, 
-    el("h1", {}, "Version history"),
-    el("p", { class: "task" }, "Every state of the real files. Restoring a version adds a new version — nothing is erased."),
+  mount(main, el("div", { class: "enter" },
+    el("div", { class: "page-head" },
+      el("div", {},
+        el("h1", { class: "hero" }, el("span", { class: "l1" }, "Every version."), el("span", { class: "l2" }, "Always reversible.")),
+        el("p", { class: "lede" }, "Each state of the real files, who approved it, and why. Restoring adds a new version, so nothing is ever erased."))),
     el("div", { class: "card" }, versions.map(v => {
-      const btn = v.version === head ? el("span", { class: "pill open" }, "current")
-        : el("button", { class: "btn small" }, "Restore");
-      if (v.version !== head) btn.addEventListener("click", async () => {
-        if (btn.dataset.armed !== "1") { btn.dataset.armed = "1"; btn.textContent = `Restore v${v.version}?`; btn.classList.add("danger"); return; }
-        btn.disabled = true;
-        try { const r = await api("/api/rollback", { version: v.version }); toast(`Restored v${v.version} as v${r.version}`); }
-        catch (e) { toast(e.message, true); }
-        loadIntegrity(); loadHistory();
-      });
+      let action;
+      if (v.version === head) action = el("span", { class: "tag open" }, "Current");
+      else {
+        action = el("button", { class: "btn ghost small" }, "Restore");
+        action.addEventListener("click", async () => {
+          if (action.dataset.armed !== "1") {
+            action.dataset.armed = "1"; action.textContent = `Restore v${v.version}?`; action.className = "btn danger small"; return;
+          }
+          action.disabled = true;
+          try { const r = await api("/api/rollback", { version: v.version }); toast(`Restored v${v.version} as v${r.version}`); }
+          catch (e) { toast(e.message, true); }
+          loadIntegrity(); loadHistory();
+        });
+      }
+      const who = v.approved_by ? (v.approved_by === "policy:auto-approve" ? "auto-approved by policy" : `approved by ${v.approved_by}`) : `by ${v.actor}`;
       return el("div", { class: "ver" + (v.version === head ? " head" : "") },
         el("div", { class: "vnum" }, "v" + v.version),
-        el("div", {},
+        el("div", { style: "min-width:0" },
           el("div", { class: "vmsg" }, v.message),
-          el("div", { class: "vmeta" }, `${v.actor} · ${fmtTime(v.ts, true)} · ${v.files} files`,
-            v.approved_by ? ` · approved by ${v.approved_by}` : "",
-            v.workspace ? el("span", {}, " · ", el("a", { href: "#/review/" + v.workspace }, v.workspace)) : "")),
-        btn);
-    })));
+          el("div", { class: "vmeta" }, `${who} · ${fmtTime(v.ts, true)} · ${plural(v.files, "file")}`,
+            v.workspace ? el("span", {}, " · ", el("a", { href: "#/review/" + v.workspace }, v.workspace)) : null)),
+        action);
+    }))));
 }
 
-// ---- global activity ----
+// ---- audit log ----
 async function loadActivity() {
   const main = document.getElementById("view-activity");
-  let entries;
-  try { entries = await api("/api/log" + (state.deniedOnly ? "?denied=1" : "")); } catch (e) { return toast(e.message, true); }
-  const seg = el("div", { class: "seg", role: "group" },
-    el("button", { "aria-pressed": !state.deniedOnly, onclick: () => { state.deniedOnly = false; loadActivity(); } }, "All"),
-    el("button", { "aria-pressed": state.deniedOnly, onclick: () => { state.deniedOnly = true; loadActivity(); } }, "Denied"));
-  mount(main, 
-    el("h1", {}, "Audit log"),
-    el("p", { class: "task" }, "Every read, write and decision across all agents, newest first. Each entry is signed and chained to the one before it."),
-    activityCard(entries, entries.length + " events", seg, true));
+  let entries, verify;
+  try { [entries, verify] = await Promise.all([api("/api/log" + (state.deniedOnly ? "?denied=1" : "")), api("/api/verify")]); }
+  catch (e) { return toast(e.message, true); }
+  const seg = el("div", { class: "seg", role: "group", "aria-label": "Filter" },
+    el("button", { "aria-pressed": String(!state.deniedOnly), onclick: () => { state.deniedOnly = false; loadActivity(); } }, "Everything"),
+    el("button", { "aria-pressed": String(state.deniedOnly), onclick: () => { state.deniedOnly = true; loadActivity(); } }, "Denied"));
+  mount(main, el("div", { class: "enter" },
+    el("div", { class: "page-head" },
+      el("div", {},
+        el("h1", { class: "hero" }, el("span", { class: "l1" }, "Every action."), el("span", { class: "l2" }, "Signed and chained.")),
+        el("p", { class: "lede" }, "Each read, write and decision by every agent and reviewer. Every entry is signed and linked to the one before it, so any edit or deletion shows up.")),
+      seg),
+    el("div", { class: "card" },
+      el("div", { class: "chain" },
+        el("span", { class: "tag " + (verify.ok ? "merged" : "flag") }, verify.ok ? "Chain intact" : "Tampering detected"),
+        el("span", {}, plural(verify.entries, "entry")),
+        el("span", {}, "head ", el("span", { class: "mono" }, verify.head.slice(0, 16) + "…"))),
+      verify.ok ? null : el("div", { class: "chain" }, verify.problems.join(" · ")),
+      timeline(entries, true))));
 }
 
-document.getElementById("reviewer").textContent = REVIEWER;
+// ---- command palette ----
+const palette = { open: false, items: [], index: 0 };
+function paletteItems(q) {
+  q = q.trim().toLowerCase();
+  const ws = state.workspaces.map(w => ({
+    kind: w.status === "open" ? (w.flags ? "flagged" : w.submitted_at ? "ready" : "open") : w.status,
+    title: shortAgent(w.agent), sub: `${w.task || ""} · ${w.id}`, go: "#/review/" + w.id, av: initials(w.agent) }));
+  const views = [
+    { kind: "page", title: "Review", sub: "workspaces waiting on you", go: "#/review", av: "→" },
+    { kind: "page", title: "History", sub: "versions and rollback", go: "#/history", av: "→" },
+    { kind: "page", title: "Audit log", sub: "every action, signed", go: "#/activity", av: "→" },
+  ];
+  const all = [...ws, ...views];
+  return q ? all.filter(i => (i.title + " " + i.sub + " " + i.kind).toLowerCase().includes(q)) : all;
+}
+function openPalette() {
+  if (palette.open) return;
+  palette.open = true;
+  const root = document.getElementById("palette-root");
+  const input = el("input", { id: "palette-input", placeholder: "Search workspaces and agents", autocomplete: "off", spellcheck: "false", "aria-label": "Search" });
+  const list = el("ul", { class: "results", role: "listbox" });
+  const choose = i => { const it = palette.items[i]; if (!it) return; closePalette(); location.hash = it.go; };
+  const draw = () => {
+    palette.items = paletteItems(input.value);
+    palette.index = Math.min(palette.index, Math.max(palette.items.length - 1, 0));
+    mount(list, palette.items.length ? palette.items.map((it, i) => el("li", {
+      class: "result", role: "option", "aria-selected": i === palette.index ? "true" : "false",
+      onmousemove: () => { if (palette.index !== i) { palette.index = i; draw(); } },
+      onclick: () => choose(i) },
+      el("span", { class: "avatar" }, it.av),
+      el("span", { class: "r-text" }, el("div", { class: "r-title" }, it.title), el("div", { class: "r-sub" }, it.sub)),
+      el("span", { class: "r-kind" }, it.kind))) : el("li", { class: "empty" }, "No matches."));
+  };
+  input.addEventListener("input", () => { palette.index = 0; draw(); });
+  input.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); palette.index = Math.min(palette.index + 1, palette.items.length - 1); draw(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); palette.index = Math.max(palette.index - 1, 0); draw(); }
+    else if (e.key === "Enter") { e.preventDefault(); choose(palette.index); }
+    else if (e.key === "Escape") closePalette();
+  });
+  const scrim = el("div", { class: "scrim", onclick: e => { if (e.target === scrim) closePalette(); } },
+    el("div", { class: "palette", role: "dialog", "aria-label": "Search" },
+      el("div", { class: "palette-input" }, icon("search"), input, el("kbd", {}, "esc")),
+      list,
+      el("div", { class: "palette-foot" }, el("span", {}, el("kbd", {}, "↑↓"), "navigate"), el("span", {}, el("kbd", {}, "↵"), "open"))));
+  mount(root, scrim);
+  palette.index = 0; draw(); input.focus();
+}
+function closePalette() { palette.open = false; mount(document.getElementById("palette-root")); }
+document.getElementById("open-palette").addEventListener("click", openPalette);
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); palette.open ? closePalette() : openPalette(); }
+  else if (e.key === "/" && !palette.open && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); openPalette(); }
+});
+
+const me = document.getElementById("me");
+me.textContent = initials(REVIEWER);
+me.title = "Reviewing as " + REVIEWER;
 loadIntegrity();
 route();
-setInterval(() => { if (!document.hidden && !location.hash.startsWith("#/history")) loadIntegrity(); }, 15000);
+setInterval(() => { if (!document.hidden) loadIntegrity(); }, 15000);
 </script>
 </body>
 </html>

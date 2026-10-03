@@ -169,6 +169,9 @@ The web app is the reviewer's side of the product:
 - **Review.** It lists every agent workspace, with flagged ones selected first. For each one you see its unified diff, guardrail flags, denied attempts, access policy (including inherited layers for forks), and everything the agent did. **Approve & merge** stays disabled until you confirm you've reviewed any flags. **Discard** takes an optional reason, which goes into the audit log.
 - **History.** Every version of the real files, showing who approved what. You can restore any version.
 - **Activity.** The full audit log, with a filter for denied actions only. The header badge re-verifies the log's hash chain every 15 seconds.
+- **Search.** Press ⌘K (or `/`) to jump to any workspace, agent or page.
+
+The design follows `docs/DESIGN.md`. It bundles the Geist typeface (SIL Open Font License, in `tether/static/fonts/`), so it works offline and makes no third-party requests.
 
 The app runs as one reviewer identity and listens on 127.0.0.1 only. Since it can change real files:
 

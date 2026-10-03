@@ -17,4 +17,4 @@ tether = "tether.cli:main"
 packages = ["tether"]
 
 [tool.setuptools.package-data]
-tether = ["ui.html"]
+tether = ["ui.html", "static/fonts/*"]

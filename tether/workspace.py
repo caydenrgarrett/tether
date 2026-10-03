@@ -491,21 +491,25 @@ class Workspace:
         st = self.state
         return diff_manifests(self.repo.version(st["base_version"])["manifest"], st["manifest"])
 
+    def change_lines(self, c: Change, context: int = 3) -> list[str] | None:
+        """Unified diff lines for one change, or None for a binary file."""
+        old = self.repo.objects.get(c.old) if c.old else b""
+        new = self.repo.objects.get(c.new) if c.new else b""
+        try:
+            a, b = old.decode("utf-8"), new.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+        lines = difflib.unified_diff(
+            a.splitlines(keepends=True), b.splitlines(keepends=True),
+            fromfile=f"a/{c.path}" if c.old else "/dev/null",
+            tofile=f"b/{c.path}" if c.new else "/dev/null", n=context,
+        )
+        return [line.rstrip("\n") for line in lines]
+
     def render_diff(self, context: int = 3) -> str:
         out = []
         for c in self.diff():
-            old = self.repo.objects.get(c.old) if c.old else b""
-            new = self.repo.objects.get(c.new) if c.new else b""
             out.append(f"{c.status}: {c.path}")
-            try:
-                a, b = old.decode("utf-8"), new.decode("utf-8")
-            except UnicodeDecodeError:
-                out.append(f"  binary file ({len(old)} -> {len(new)} bytes)")
-                continue
-            lines = difflib.unified_diff(
-                a.splitlines(keepends=True), b.splitlines(keepends=True),
-                fromfile=f"a/{c.path}" if c.old else "/dev/null",
-                tofile=f"b/{c.path}" if c.new else "/dev/null", n=context,
-            )
-            out.extend(line.rstrip("\n") for line in lines)
+            lines = self.change_lines(c, context)
+            out.extend(lines if lines is not None else ["  binary file"])
         return "\n".join(out)

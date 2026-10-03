@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tether review</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f1f3f6; --border: #e2e5ea; --text: #161a20;
+  --muted: #5d6673; --faint: #8a93a0; --accent: #2f5bea; --accent-text: #ffffff;
+  --ok: #1b7f4b; --ok-bg: #e5f5ec; --warn: #9a5b00; --warn-bg: #fff4e0;
+  --bad: #c02d2d; --bad-bg: #fdecec; --info-bg: #e9efff;
+  --add-bg: #e8f6ee; --add-text: #155d38; --del-bg: #fdeeee; --del-text: #9b2323; --hunk: #6b5bd2;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06); --on-ok: #ffffff;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116; --panel: #161a21; --panel-2: #1d222b; --border: #2a303b; --text: #e6e9ee;
+    --muted: #9aa3b1; --faint: #6c7584; --accent: #6b8cff; --accent-text: #0e1116;
+    --ok: #4cc38a; --ok-bg: #12291e; --warn: #f0b356; --warn-bg: #2d2312;
+    --bad: #ff7b7b; --bad-bg: #2f1517; --info-bg: #1a2240;
+    --add-bg: #12291e; --add-text: #7fdcaa; --del-bg: #2f1517; --del-text: #ff9c9c; --hunk: #a99cff;
+    --shadow: none; --on-ok: #0b1f15;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+a { color: var(--accent); }
+
+/* top bar */
+.top {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 20px;
+  padding: 0 20px; height: 56px; background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16px; letter-spacing: -.01em; }
+.brand svg { color: var(--accent); }
+.tabs { display: flex; gap: 4px; }
+.tab {
+  border: 0; background: none; color: var(--muted); padding: 6px 12px; border-radius: 8px; font-weight: 500;
+}
+.tab:hover { background: var(--panel-2); color: var(--text); }
+.tab[aria-current="page"] { background: var(--panel-2); color: var(--text); }
+.spacer { flex: 1; }
+.who { color: var(--muted); font-size: 13px; }
+.who b { color: var(--text); font-weight: 600; }
+.integrity {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; border: 0;
+}
+.integrity.ok { background: var(--ok-bg); color: var(--ok); }
+.integrity.bad { background: var(--bad-bg); color: var(--bad); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* layout */
+.layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: calc(100vh - 56px); }
+.layout > * { min-width: 0; }
+.sidebar { border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; height: calc(100vh - 56px); position: sticky; top: 56px; }
+.side-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+.side-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.seg { display: inline-flex; background: var(--panel-2); border-radius: 8px; padding: 2px; }
+.seg button { border: 0; background: none; color: var(--muted); padding: 3px 10px; border-radius: 6px; font-size: 12.5px; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.ws-list { list-style: none; margin: 0; padding: 0 8px 16px; }
+.ws-item {
+  display: block; width: 100%; text-align: left; border: 1px solid transparent; background: none; color: inherit;
+  padding: 10px 12px; border-radius: 10px; margin-bottom: 2px;
+}
+.ws-item:hover { background: var(--panel-2); }
+.ws-item[aria-current="true"] { background: var(--info-bg); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.ws-row { display: flex; align-items: center; gap: 8px; }
+.ws-agent { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ws-task { color: var(--muted); font-size: 13px; margin: 2px 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.counts { display: flex; gap: 8px; font: 12px var(--mono); color: var(--faint); }
+.c-add { color: var(--add-text); } .c-mod { color: var(--warn); } .c-del { color: var(--del-text); }
+.empty { color: var(--muted); padding: 24px 16px; text-align: center; }
+
+.main { padding: 24px 28px 64px; max-width: 1100px; width: 100%; }
+
+/* pills & badges */
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill.open { background: var(--info-bg); color: var(--accent); }
+.pill.merged { background: var(--ok-bg); color: var(--ok); }
+.pill.discarded { background: var(--panel-2); color: var(--muted); }
+.pill.flag { background: var(--bad-bg); color: var(--bad); }
+.pill.read { background: var(--info-bg); color: var(--accent); }
+.pill.write { background: var(--warn-bg); color: var(--warn); }
+.pill.none { background: var(--bad-bg); color: var(--bad); }
+
+/* detail */
+.crumbs { color: var(--faint); font: 12.5px var(--mono); margin-bottom: 6px; }
+h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.015em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.task { color: var(--muted); margin: 0 0 14px; font-size: 15px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.meta b { color: var(--text); font-weight: 600; }
+.meta .denied, .meta .denied b { color: var(--bad); }
+
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 18px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.card-head h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.card-head .sub { color: var(--muted); font-size: 13px; }
+.card-body { padding: 14px 16px; }
+
+.alert { border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; border: 1px solid; }
+.alert.bad { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.alert.ok { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.alert.muted { background: var(--panel-2); border-color: var(--border); }
+.alert h3 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.alert.bad h3 { color: var(--bad); } .alert.ok h3 { color: var(--ok); }
+.alert ul { margin: 0; padding-left: 18px; }
+.alert li { margin: 3px 0; }
+.alert code, .mono { font-family: var(--mono); font-size: 12.5px; }
+
+/* decision bar */
+.decide { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; }
+.btn { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 8px 14px; border-radius: 9px; font-weight: 600; }
+.btn:hover:not(:disabled) { background: var(--panel-2); }
+.btn.primary { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(--ok); }
+.btn.danger { color: var(--bad); }
+.btn.small { padding: 4px 10px; font-size: 12.5px; }
+.check { display: inline-flex; align-items: center; gap: 8px; color: var(--bad); font-weight: 500; font-size: 13px; }
+.reason { flex: 1; min-width: 200px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+
+/* diffs */
+.file { border-top: 1px solid var(--border); }
+.file:first-child { border-top: 0; }
+.file-head {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 16px; background: none; border: 0;
+  color: inherit; text-align: left; font: 13px var(--mono);
+}
+.file-head:hover { background: var(--panel-2); }
+.chev { transition: transform .15s; color: var(--faint); }
+.file[data-open="false"] .chev { transform: rotate(-90deg); }
+.file[data-open="false"] .diff { display: none; }
+.st { font: 600 11px/1 -apple-system, sans-serif; text-transform: uppercase; letter-spacing: .05em; padding: 3px 6px; border-radius: 5px; }
+.st.added { background: var(--add-bg); color: var(--add-text); }
+.st.modified { background: var(--warn-bg); color: var(--warn); }
+.st.deleted { background: var(--del-bg); color: var(--del-text); }
+.diff { overflow-x: auto; border-top: 1px solid var(--border); font: 12.5px/1.55 var(--mono); }
+.diff table { border-collapse: collapse; width: 100%; }
+.diff td { padding: 0 12px; white-space: pre; vertical-align: top; }
+.diff td.sign { width: 1%; padding: 0 2px 0 6px; user-select: none; color: var(--faint); }
+.diff tr.add td.sign { color: var(--add-text); } .diff tr.del td.sign { color: var(--del-text); }
+.diff td.ln { width: 1%; color: var(--faint); text-align: right; user-select: none; padding: 0 8px; }
+.diff tr.add { background: var(--add-bg); } .diff tr.add td.code { color: var(--add-text); }
+.diff tr.del { background: var(--del-bg); } .diff tr.del td.code { color: var(--del-text); }
+.diff tr.hunk td { color: var(--hunk); background: var(--panel-2); padding-top: 3px; padding-bottom: 3px; }
+.binary { padding: 12px 16px; color: var(--muted); font-style: italic; }
+
+/* policy */
+.rules { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rules td, .rules th { padding: 7px 0; border-bottom: 1px solid var(--border); text-align: left; }
+.rules th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.rules tr:last-child td { border-bottom: 0; }
+.layer { color: var(--muted); font-size: 12.5px; margin: 14px 0 4px; }
+.layer:first-child { margin-top: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { font: 12px var(--mono); background: var(--panel-2); color: var(--muted); padding: 2px 8px; border-radius: 6px; }
+
+/* timeline */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.ev { display: grid; grid-template-columns: 92px 16px 1fr; gap: 10px; padding: 7px 16px; align-items: start; font-size: 13px; }
+.ev + .ev { border-top: 1px solid var(--border); }
+.ev time { color: var(--faint); font: 12px var(--mono); padding-top: 1px; white-space: nowrap; }
+.ev .mark { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; background: var(--faint); }
+.ev.allowed .mark { background: var(--ok); }
+.ev.denied { background: var(--bad-bg); }
+.ev.denied .mark { background: var(--bad); }
+.ev .what b { font-weight: 600; }
+.ev .why { color: var(--bad); font-size: 12.5px; }
+.ev .actor { color: var(--muted); }
+.ev .path { font-family: var(--mono); font-size: 12.5px; }
+
+/* history */
+.ver { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 12px 16px; }
+.ver + .ver { border-top: 1px solid var(--border); }
+.vnum { font: 600 15px var(--mono); color: var(--muted); }
+.ver.head .vnum { color: var(--accent); }
+.vmsg { font-weight: 600; }
+.vmeta { color: var(--muted); font-size: 12.5px; }
+
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 10px 16px; border-radius: 10px; font-weight: 500; box-shadow: 0 6px 24px rgba(0,0,0,.2); z-index: 20;
+  max-width: calc(100vw - 32px);
+}
+.toast.bad { background: var(--bad); color: #fff; }
+.hidden { display: none !important; }
+
+.welcome { max-width: 520px; margin: 12vh auto 0; text-align: center; color: var(--muted); }
+.welcome h2 { color: var(--text); margin-bottom: 6px; }
+.welcome code { font-family: var(--mono); background: var(--panel-2); padding: 2px 6px; border-radius: 6px; }
+
+@media (max-width: 860px) {
+  .top { gap: 10px; padding: 0 16px; flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; }
+  .who { display: none; }
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--border); }
+  .main { padding: 18px 16px 48px; }
+  .ev { grid-template-columns: 1fr; gap: 2px; padding: 8px 12px; } .ev .mark { display: none; }
+  .ver { grid-template-columns: 44px 1fr; }
+  .ver .btn { grid-column: 2; justify-self: start; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3.5v6c0 5-3.4 9-8 10.5C7.4 20.5 4 16.5 4 11.5v-6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+    tether
+  </div>
+  <nav class="tabs" aria-label="Sections">
+    <button class="tab" data-route="review">Review</button>
+    <button class="tab" data-route="history">History</button>
+    <button class="tab" data-route="activity">Activity</button>
+  </nav>
+  <div class="spacer"></div>
+  <span class="who">Reviewing as <b id="reviewer"></b></span>
+  <button id="integrity" class="integrity hidden" title="Recheck the audit log"></button>
+</header>
+
+<div id="view-review" class="layout">
+  <aside class="sidebar">
+    <div class="side-head">
+      <h2>Workspaces</h2>
+      <div class="seg" role="group" aria-label="Filter">
+        <button data-filter="open" aria-pressed="true">Open</button>
+        <button data-filter="all" aria-pressed="false">All</button>
+      </div>
+    </div>
+    <ul id="ws-list" class="ws-list"></ul>
+  </aside>
+  <main id="detail" class="main"></main>
+</div>
+<main id="view-history" class="main hidden"></main>
+<main id="view-activity" class="main hidden"></main>
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script>
+"use strict";
+const TOKEN = "__TETHER_TOKEN__";
+const REVIEWER = "__TETHER_REVIEWER__";
+const state = { filter: "open", workspaces: [], selected: null, deniedOnly: false };
+
+// ---- tiny DOM builder: all data goes through textContent, never innerHTML ----
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat(Infinity)) {
+    if (c === null || c === undefined || c === false) continue;
+    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return node;
+}
+const svg = (d, size = 14) => {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("width", size); s.setAttribute("height", size); s.setAttribute("viewBox", "0 0 24 24");
+  s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor"); s.setAttribute("stroke-width", "2.2");
+  s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
+  const p = document.createElementNS("http://www.w3.org/2000/svg", "path"); p.setAttribute("d", d); s.append(p);
+  return s;
+};
+const ICON = {
+  chev: "M6 9l6 6 6-6",
+  flag: "M4 22V4m0 0h12l-2 4 2 4H4",
+};
+
+function mount(node, ...children) {
+  node.replaceChildren(...children.flat(Infinity).filter(c => c !== null && c !== undefined && c !== false));
+}
+
+function fmtTime(ts, withDate) {
+  const d = new Date(ts);
+  if (isNaN(d)) return ts;
+  const opts = withDate ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
+                        : { hour: "2-digit", minute: "2-digit", second: "2-digit" };
+  return d.toLocaleString(undefined, opts);
+}
+function ago(ts) {
+  const s = (Date.now() - new Date(ts)) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + "m ago";
+  if (s < 86400) return Math.floor(s / 3600) + "h ago";
+  return Math.floor(s / 86400) + "d ago";
+}
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : {
+    method: "POST", body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", "X-Tether-Token": TOKEN },
+  };
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({ error: res.statusText }));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+let toastTimer;
+function toast(msg, bad) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "toast" + (bad ? " bad" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), 4200);
+}
+
+// ---- routing ----
+function route() {
+  const [, view = "review", id] = location.hash.split("/");
+  for (const v of ["review", "history", "activity"]) {
+    document.getElementById("view-" + v).classList.toggle("hidden", v !== view);
+  }
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-current", t.dataset.route === view ? "page" : "false"));
+  if (view === "history") return loadHistory();
+  if (view === "activity") return loadActivity();
+  state.selected = id || null;
+  loadWorkspaces();
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  location.hash = "#/" + t.dataset.route + (t.dataset.route === "review" && state.selected ? "/" + state.selected : "");
+}));
+document.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => {
+  state.filter = b.dataset.filter;
+  document.querySelectorAll("[data-filter]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  renderList();
+}));
+window.addEventListener("hashchange", route);
+
+// ---- integrity badge ----
+async function loadIntegrity() {
+  const b = document.getElementById("integrity");
+  try {
+    const r = await api("/api/verify");
+    b.className = "integrity " + (r.ok ? "ok" : "bad");
+    b.replaceChildren(el("span", { class: "dot" }),
+      r.ok ? `Audit log verified · ${r.entries} entries` : `Audit log tampered (${r.problems.length})`);
+    b.title = r.ok ? "Head " + r.head : r.problems.join("\n");
+  } catch (e) {
+    b.className = "integrity bad"; b.replaceChildren(el("span", { class: "dot" }), "Audit log unavailable");
+  }
+}
+document.getElementById("integrity").addEventListener("click", loadIntegrity);
+
+// ---- workspace list ----
+async function loadWorkspaces() {
+  try { state.workspaces = await api("/api/workspaces"); }
+  catch (e) { return toast(e.message, true); }
+  if (!state.selected) {
+    const open = state.workspaces.filter(w => w.status === "open");
+    const first = open.find(w => w.flags) || open[0] || state.workspaces[0];
+    if (first) { history.replaceState(null, "", "#/review/" + first.id); state.selected = first.id; }
+  }
+  const sel = state.workspaces.find(w => w.id === state.selected);
+  if (sel && sel.status !== "open" && state.filter === "open") {
+    state.filter = "all";
+    document.querySelectorAll("[data-filter]").forEach(x => x.setAttribute("aria-pressed", x.dataset.filter === "all"));
+  }
+  renderList();
+  loadDetail();
+}
+
+function counts(c) {
+  return el("span", { class: "counts" },
+    el("span", { class: "c-add", title: "added" }, "+" + c.added),
+    el("span", { class: "c-mod", title: "modified" }, "~" + c.modified),
+    el("span", { class: "c-del", title: "deleted" }, "−" + c.deleted));
+}
+
+function renderList() {
+  const list = document.getElementById("ws-list");
+  const rows = state.workspaces.filter(w => state.filter === "all" || w.status === "open");
+  if (!rows.length) {
+    mount(list, el("li", { class: "empty" }, state.filter === "open" ? "Nothing waiting for review." : "No workspaces yet."));
+    return;
+  }
+  mount(list, ...rows.map(w => el("li", {},
+    el("button", {
+      class: "ws-item", "aria-current": w.id === state.selected ? "true" : "false",
+      onclick: () => { location.hash = "#/review/" + w.id; },
+    },
+      el("div", { class: "ws-row" },
+        el("span", { class: "ws-agent" }, w.agent),
+        w.flags ? el("span", { class: "pill flag", title: "guardrail flags" }, svg(ICON.flag, 11), w.flags) : null,
+        el("span", { class: "pill " + w.status }, w.status)),
+      el("div", { class: "ws-task" }, w.task || w.id),
+      el("div", { class: "ws-row" }, counts(w.changes), el("span", { class: "spacer" }),
+        el("span", { class: "counts" }, ago(w.created)))))));
+}
+
+// ---- workspace detail ----
+async function loadDetail() {
+  const main = document.getElementById("detail");
+  if (!state.selected) {
+    mount(main, el("div", { class: "welcome" },
+      el("h2", {}, "No agent workspaces yet"),
+      el("p", {}, "Create one and it will show up here for review:"),
+      el("p", {}, el("code", {}, "tether create --agent agent:bot --read 'docs/**' --write 'out/**'"))));
+    return;
+  }
+  let w;
+  try { w = await api("/api/workspaces/" + state.selected); }
+  catch (e) { mount(main, el("div", { class: "welcome" }, el("h2", {}, "Workspace not found"), el("p", {}, e.message))); return; }
+  const denied = w.activity.filter(e => e.outcome === "denied").length;
+  mount(main, 
+    el("div", { class: "crumbs" }, w.id + (w.parent ? "  ·  forked from " + w.parent : "")),
+    el("h1", {}, w.agent, el("span", { class: "pill " + w.status }, w.status)),
+    w.task ? el("p", { class: "task" }, w.task) : null,
+    el("div", { class: "meta" },
+      el("span", {}, "Forked from ", el("b", {}, "v" + w.base_version), " · ", ago(w.created)),
+      el("span", {}, el("b", {}, w.counters.reads), " reads"),
+      el("span", {}, el("b", {}, w.counters.writes), " writes"),
+      el("span", {}, el("b", {}, w.files.length), " files changed"),
+      denied ? el("span", { class: "denied" }, el("b", {}, denied), " denied") : null),
+    flagsBlock(w),
+    decisionBlock(w),
+    changesCard(w),
+    policyCard(w),
+    activityCard(w.activity, "Agent activity", `${w.activity.length} events in this workspace`));
+}
+
+function flagsBlock(w) {
+  if (!w.flag_list.length) return null;
+  return el("div", { class: "alert bad" },
+    el("h3", {}, svg(ICON.flag), `${w.flag_list.length} guardrail flag${w.flag_list.length > 1 ? "s" : ""} — the agent tried something outside its task`),
+    el("ul", {}, w.flag_list.map(f => el("li", {},
+      el("b", {}, f.action), " ", f.path ? el("code", {}, f.path) : null, " — ", f.reason,
+      el("span", { class: "vmeta" }, "  " + fmtTime(f.ts))))));
+}
+
+function decisionBlock(w) {
+  if (w.status === "merged") {
+    return el("div", { class: "alert ok" }, el("h3", {}, `Merged as v${w.merged_version}`),
+      el("div", {}, `Approved by ${w.closed_by} · ${fmtTime(w.closed_at, true)}. `,
+        el("a", { href: "#/history" }, "View history or roll back")));
+  }
+  if (w.status === "discarded") {
+    return el("div", { class: "alert muted" }, el("h3", {}, "Discarded"),
+      el("div", {}, `By ${w.closed_by} · ${fmtTime(w.closed_at, true)}. The real files were never touched.`));
+  }
+  const selfReview = REVIEWER === w.agent;
+  const ack = w.flags ? el("input", { type: "checkbox", id: "ack" }) : null;
+  const merge = el("button", { class: "btn primary", disabled: selfReview || !!w.flags }, "Approve & merge");
+  const discard = el("button", { class: "btn danger" }, "Discard");
+  const reason = el("input", { class: "reason hidden", placeholder: "Reason for discarding (optional)", maxlength: "500" });
+  const confirmDiscard = el("button", { class: "btn danger hidden" }, "Confirm discard");
+  if (ack) ack.addEventListener("change", () => { merge.disabled = !ack.checked; });
+
+  merge.addEventListener("click", async () => {
+    merge.disabled = true;
+    try {
+      const r = await api(`/api/workspaces/${w.id}/merge`, { allow_flagged: !!(ack && ack.checked) });
+      toast(`Merged into the real files as v${r.version}`);
+    } catch (e) { toast(e.message, true); }
+    loadIntegrity(); loadWorkspaces();
+  });
+  discard.addEventListener("click", () => {
+    discard.classList.add("hidden"); reason.classList.remove("hidden"); confirmDiscard.classList.remove("hidden"); reason.focus();
+  });
+  confirmDiscard.addEventListener("click", async () => {
+    confirmDiscard.disabled = true;
+    try { await api(`/api/workspaces/${w.id}/discard`, { reason: reason.value.trim() || null }); toast("Workspace discarded"); }
+    catch (e) { toast(e.message, true); }
+    loadIntegrity(); loadWorkspaces();
+  });
+
+  return el("div", { class: "card" },
+    el("div", { class: "card-head" }, el("h3", {}, "Decision"),
+      el("span", { class: "sub" }, w.files.length ? "Merging applies these changes to the real files as a new version." : "No changes to merge.")),
+    el("div", { class: "decide" },
+      ack ? el("label", { class: "check" }, ack, `I've reviewed the ${w.flags} flag${w.flags > 1 ? "s" : ""}`) : null,
+      merge, discard, reason, confirmDiscard,
+      selfReview ? el("span", { class: "vmeta" }, "You can't approve your own agent's changes.") : null));
+}
+
+function diffTable(lines) {
+  let oldN = 0, newN = 0;
+  const rows = [];
+  const row = (cls, a, b, sign, code) => el("tr", { class: cls },
+    el("td", { class: "ln" }, a), el("td", { class: "ln" }, b), el("td", { class: "sign" }, sign), el("td", { class: "code" }, code));
+  for (const line of lines) {
+    if (line.startsWith("---") || line.startsWith("+++")) continue;
+    if (line.startsWith("@@")) {
+      const m = /@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
+      if (m) { oldN = +m[1]; newN = +m[2]; }
+      rows.push(el("tr", { class: "hunk" }, el("td", { colspan: "3" }), el("td", { class: "code" }, line)));
+    } else if (line.startsWith("+")) {
+      rows.push(row("add", "", newN++, "+", line.slice(1)));
+    } else if (line.startsWith("-")) {
+      rows.push(row("del", oldN++, "", "−", line.slice(1)));
+    } else if (line.startsWith("\\")) {
+      rows.push(row("", "", "", "", line));
+    } else {
+      rows.push(row("", oldN++, newN++, "", line.slice(1)));
+    }
+  }
+  return el("div", { class: "diff" }, el("table", {}, el("tbody", {}, rows)));
+}
+
+function changesCard(w) {
+  const body = w.files.length
+    ? w.files.map(f => {
+        const box = el("div", { class: "file", "data-open": "true" });
+        const head = el("button", { class: "file-head", "aria-expanded": "true" },
+          el("span", { class: "chev" }, svg(ICON.chev)), el("span", { class: "st " + f.status }, f.status), f.path);
+        head.addEventListener("click", () => {
+          const open = box.dataset.open !== "true";
+          box.dataset.open = open; head.setAttribute("aria-expanded", open);
+        });
+        box.append(head, f.binary ? el("div", { class: "binary" }, "Binary file changed") : diffTable(f.lines));
+        return box;
+      })
+    : [el("div", { class: "card-body vmeta" }, "The agent hasn't changed anything.")];
+  const tally = ["added", "modified", "deleted"].filter(s => w.changes[s]).map(s => `${w.changes[s]} ${s}`).join(", ");
+  return el("div", { class: "card" },
+    el("div", { class: "card-head" }, el("h3", {}, "Changes"), el("span", { class: "sub" }, tally || "none")),
+    el("div", {}, body));
+}
+
+function policyCard(w) {
+  const layers = w.policies.map((p, i) => [
+    w.policies.length > 1 ? el("div", { class: "layer" },
+      i === 0 ? "Inherited from the root workspace" : i === w.policies.length - 1 ? "This workspace (access is the intersection of all layers)" : `Layer ${i + 1}`) : null,
+    p.rules.length
+      ? el("table", { class: "rules" },
+          el("thead", {}, el("tr", {}, el("th", {}, "Path"), el("th", {}, "Access"))),
+          el("tbody", {}, p.rules.map(r => el("tr", {},
+            el("td", { class: "mono" }, r.path), el("td", {}, el("span", { class: "pill " + r.access }, r.access))))))
+      : el("div", { class: "vmeta" }, "No rules — nothing is accessible."),
+    el("div", { class: "chips" }, Object.entries(p.guardrails).filter(([, v]) => v !== null && v !== false)
+      .map(([k, v]) => el("span", { class: "chip" }, v === true ? k : `${k}=${v}`))),
+  ]);
+  return el("div", { class: "card" },
+    el("div", { class: "card-head" }, el("h3", {}, "Access policy"), el("span", { class: "sub" }, "Deny by default · last matching rule wins")),
+    el("div", { class: "card-body" }, layers));
+}
+
+function describe(e, showWs) {
+  const verb = { read: "read", write: "wrote", delete: "deleted", list: "listed files", create: "created workspace",
+    fork: "forked workspace", merge: "merge", discard: "discarded workspace", rollback: "rolled back",
+    snapshot: "snapshot", init: "initialized repository" }[e.action] || e.action;
+  const bits = [el("span", { class: "actor" }, e.actor), " ", el("b", {}, e.outcome === "denied" ? "tried to " + e.action : verb)];
+  if (e.path) bits.push(" ", el("span", { class: "path" }, e.path));
+  if (e.prefix) bits.push(" ", el("span", { class: "path" }, e.prefix));
+  if (e.action === "list" && e.count !== undefined) bits.push(` (${e.count} visible)`);
+  if (e.version !== undefined && e.action !== "read") bits.push(` → v${e.version}`);
+  if (e.bytes !== undefined) bits.push(el("span", { class: "vmeta" }, `  ${e.bytes} bytes`));
+  if (e.workspace && showWs) bits.push(el("span", { class: "vmeta" }, "  " + e.workspace));
+  return bits;
+}
+
+function activityCard(entries, title, sub, global) {
+  const items = entries.length ? entries.map(e => el("li", { class: "ev " + (e.outcome || "") },
+    el("time", { datetime: e.ts, title: e.ts }, fmtTime(e.ts, global)),
+    el("span", { class: "mark" }),
+    el("div", { class: "what" }, describe(e, global), e.reason ? el("div", { class: "why" }, e.reason) : null)))
+    : [el("li", { class: "empty" }, "No events.")];
+  return el("div", { class: "card" },
+    el("div", { class: "card-head" }, el("h3", {}, title), sub),
+    el("ul", { class: "timeline" }, items));
+}
+
+// ---- history ----
+async function loadHistory() {
+  const main = document.getElementById("view-history");
+  let versions;
+  try { versions = await api("/api/history"); } catch (e) { return toast(e.message, true); }
+  const head = versions.length ? versions[0].version : -1;
+  mount(main, 
+    el("h1", {}, "Version history"),
+    el("p", { class: "task" }, "Every state of the real files. Restoring a version adds a new version — nothing is erased."),
+    el("div", { class: "card" }, versions.map(v => {
+      const btn = v.version === head ? el("span", { class: "pill open" }, "current")
+        : el("button", { class: "btn small" }, "Restore");
+      if (v.version !== head) btn.addEventListener("click", async () => {
+        if (btn.dataset.armed !== "1") { btn.dataset.armed = "1"; btn.textContent = `Restore v${v.version}?`; btn.classList.add("danger"); return; }
+        btn.disabled = true;
+        try { const r = await api("/api/rollback", { version: v.version }); toast(`Restored v${v.version} as v${r.version}`); }
+        catch (e) { toast(e.message, true); }
+        loadIntegrity(); loadHistory();
+      });
+      return el("div", { class: "ver" + (v.version === head ? " head" : "") },
+        el("div", { class: "vnum" }, "v" + v.version),
+        el("div", {},
+          el("div", { class: "vmsg" }, v.message),
+          el("div", { class: "vmeta" }, `${v.actor} · ${fmtTime(v.ts, true)} · ${v.files} files`,
+            v.approved_by ? ` · approved by ${v.approved_by}` : "",
+            v.workspace ? el("span", {}, " · ", el("a", { href: "#/review/" + v.workspace }, v.workspace)) : "")),
+        btn);
+    })));
+}
+
+// ---- global activity ----
+async function loadActivity() {
+  const main = document.getElementById("view-activity");
+  let entries;
+  try { entries = await api("/api/log" + (state.deniedOnly ? "?denied=1" : "")); } catch (e) { return toast(e.message, true); }
+  const seg = el("div", { class: "seg", role: "group" },
+    el("button", { "aria-pressed": !state.deniedOnly, onclick: () => { state.deniedOnly = false; loadActivity(); } }, "All"),
+    el("button", { "aria-pressed": state.deniedOnly, onclick: () => { state.deniedOnly = true; loadActivity(); } }, "Denied"));
+  mount(main, 
+    el("h1", {}, "Audit log"),
+    el("p", { class: "task" }, "Every read, write and decision across all agents, newest first. Each entry is signed and chained to the one before it."),
+    activityCard(entries, entries.length + " events", seg, true));
+}
+
+document.getElementById("reviewer").textContent = REVIEWER;
+loadIntegrity();
+route();
+setInterval(() => { if (!document.hidden && !location.hash.startsWith("#/history")) loadIntegrity(); }, 15000);
+</script>
+</body>
+</html>

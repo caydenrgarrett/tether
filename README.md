@@ -48,6 +48,7 @@ tether rollback 0
 tether log --workspace $WS
 tether log --denied
 tether verify                                 # exits 1 if the log was tampered with
+tether serve                                  # the review web app
 ```
 
 From Python, which is how an agent harness would use it:
@@ -76,6 +77,26 @@ ws.write("reports/summary.md", "...")
 print(ws.render_diff())
 repo.merge(ws.id, reviewer="user:bob")
 ```
+
+## Review app
+
+```bash
+tether serve                       # http://localhost:8700, reviewing as $TETHER_USER
+python examples/review_demo.py     # seeds a sample drive with agent workspaces, then serves it
+```
+
+The web app is the reviewer's side of the product:
+
+- **Review.** It lists every agent workspace, with flagged ones selected first. For each one you see its unified diff, guardrail flags, denied attempts, access policy (including inherited layers for forks), and everything the agent did. **Approve & merge** stays disabled until you confirm you've reviewed any flags. **Discard** takes an optional reason, which goes into the audit log.
+- **History.** Every version of the real files, showing who approved what. You can restore any version.
+- **Activity.** The full audit log, with a filter for denied actions only. The header badge re-verifies the log's hash chain every 15 seconds.
+
+The app runs as one reviewer identity and listens on 127.0.0.1 only. Since it can change real files:
+
+- Requests with an unexpected `Host` header are rejected, which blocks DNS rebinding.
+- Every state-changing request needs a per-process token that only the served page has, which blocks cross-site requests.
+- The page sends a strict Content-Security-Policy.
+- Content from agents, such as diffs, paths, and reasons, is treated as untrusted. It's always rendered as text, never as HTML, because it can carry prompt-injection payloads.
 
 ## Policies
 
@@ -158,6 +179,7 @@ company-drive/                 the real files (agents never touch these directly
 
 - **The agent runs with your filesystem permissions.** The sandbox is the API, not the OS. That's fine when the harness only gives the agent the workspace tools, but not if the agent has a shell on the same machine. Next steps are to run the service as a separate user or behind an HTTP API, and to move `audit.key` into a KMS or a separate log service.
 - **No mounted drive.** There's no FUSE mount or WebDAV yet; agents use the API or the CLI.
+- **One reviewer, one machine.** The review app has no logins or roles yet; it acts as whoever started it.
 - **Single-machine storage.** Concurrency comes from `flock`, and storage is a local directory instead of S3 or Postgres.
 - **Regex secret scanning.** It will miss some credentials and flag some false positives.
 - **Simple merge model.** Conflicts are detected per file, with no line-level three-way merge.

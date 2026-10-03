@@ -16,6 +16,7 @@
     tether rollback VERSION
     tether log [--workspace WS] [--agent NAME] [--denied] [--json]
     tether verify [--expect-head HASH]
+    tether serve [--port N] [--reviewer NAME]   # review web app
 """
 
 from __future__ import annotations
@@ -180,6 +181,24 @@ def cmd_verify(args):
     return 0 if result.ok else 1
 
 
+def cmd_serve(args):
+    from .server import make_server
+
+    repo = _repo(args)
+    reviewer = args.reviewer or args.actor or default_actor()
+    server = make_server(str(repo.root), reviewer, host=args.host, port=args.port)
+    host, port = server.server_address[:2]
+    print(f"tether review app for {repo.root}")
+    print(f"reviewing as {reviewer}")
+    print(f"open http://{'localhost' if host == '127.0.0.1' else host}:{port}/  (ctrl-c to stop)")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tether", description=__doc__.split("\n")[0])
     parser.add_argument("--version", action="version", version=f"tether {__version__}")
@@ -258,6 +277,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("verify", help="check the audit log for tampering")
     p.add_argument("--expect-head", help="head hash recorded earlier, to detect truncation")
     p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("serve", help="open the review web app")
+    p.add_argument("--host", default="127.0.0.1", help="interface to bind (default: localhost only)")
+    p.add_argument("--port", type=int, default=8700)
+    p.add_argument("--reviewer", help="identity recorded for approvals (default: --actor)")
+    p.set_defaults(func=cmd_serve)
     return parser
 
 

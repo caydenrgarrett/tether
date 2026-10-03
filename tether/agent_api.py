@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import json
 import ssl
+import threading
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
@@ -33,9 +35,24 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .workspace import AccessDenied, GuardrailViolation, Repo, TetherError
 
 DEFAULT_MAX_BODY = 64 * 1024 * 1024
+AUTH_LOG_INTERVAL = 10.0  # seconds between audited bad-token attempts from one address
 
 
 def make_handler(root: str, max_body: int):
+    last_logged: dict[str, float] = {}
+    log_lock = threading.Lock()
+
+    def should_log(ip: str) -> bool:
+        # Audit bad tokens, but don't let a flood of them fill the log.
+        now = time.monotonic()
+        with log_lock:
+            if len(last_logged) > 10000:
+                last_logged.clear()
+            if now - last_logged.get(ip, -AUTH_LOG_INTERVAL) < AUTH_LOG_INTERVAL:
+                return False
+            last_logged[ip] = now
+            return True
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "tether-agent-api"
 
@@ -75,8 +92,9 @@ def make_handler(root: str, max_body: int):
             try:
                 return repo.authenticate(token)
             except AccessDenied:
-                repo.audit.append("auth", "anonymous", outcome="denied", reason="invalid token",
-                                  remote=self.client_address[0])
+                if should_log(self.client_address[0]):
+                    repo.audit.append("auth", "anonymous", outcome="denied", reason="invalid token",
+                                      remote=self.client_address[0])
                 raise
 
         def _handle(self):

@@ -12,14 +12,16 @@ Instead of pointing an agent at real files, you give it a **workspace**:
 5. **Rollback.** Every state is a version, and any version can be restored. A rollback is recorded as a new version, so history is never erased.
 6. **Guardrails.** Writes containing credentials are blocked, read and write budgets are enforced, and violations flag the workspace so it can't be merged without someone signing off.
 
-This is the step-1 prototype: a Python library plus CLI with no dependencies outside the standard library, and no FUSE or mounted drive yet.
+It ships as a Python library, a CLI, an MCP server, an HTTP API for agents and a review web app with team sign-in. There are no dependencies outside the standard library.
+
+**Docs:** [Deploying](docs/DEPLOY.md) · [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md) · [Design](docs/DESIGN.md) · [Demo script](docs/DEMO.md) · [Interview guide](docs/INTERVIEWS.md)
 
 ## Quick start
 
 Requires Python 3.10+ on Linux or macOS.
 
 ```bash
-pip install -e .            # or run with: python -m tether ...
+pip install git+https://github.com/caydenrgarrett/tether   # or, from a checkout: pip install -e .
 python examples/demo.py     # the full scenario below, end to end
 python -m unittest discover -s tests -t .
 ```
@@ -78,6 +80,18 @@ ws.write("reports/summary.md", "...")
 print(ws.render_diff())
 repo.merge(ws.id, reviewer="user:bob")
 ```
+
+## Run it in Docker
+
+The isolated setup: agents get only an API URL and a token, on a network with no access to the files, the audit key or the internet.
+
+```bash
+cp .env.example .env              # set the first admin's password
+docker compose up -d tether agent-api
+open http://localhost:8700        # sign in
+```
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for HTTPS, users, alerts and backups.
 
 ## Connecting agents
 
@@ -180,6 +194,26 @@ The app runs as one reviewer identity and listens on 127.0.0.1 only. Since it ca
 - The page sends a strict Content-Security-Policy.
 - Content from agents, such as diffs, paths, and reasons, is treated as untrusted. It's always rendered as text, never as HTML, because it can carry prompt-injection payloads.
 
+## Teams, alerts and audit export
+
+```bash
+tether user add alice --role reviewer        # viewer | reviewer | admin; turns on sign-in
+tether serve --tls-cert cert.pem --tls-key key.pem --host 0.0.0.0 --allowed-host review.example.com
+
+tether notify add https://hooks.slack.com/services/...   # flags, submissions, merges, failed sign-ins
+tether log --format cef --since 1200                     # or jsonl, for your SIEM
+```
+
+- **Roles are enforced on the server.** Viewers can only look, reviewers can approve and discard, and admins can also roll back.
+- **Sessions are protected:**
+  - HttpOnly, SameSite=Strict cookies, each with its own CSRF token
+  - five failed sign-ins lock that account and address for 15 minutes
+  - every sign-in is audited
+- **Never exposed without sign-in.** The app refuses to listen beyond localhost until at least one user exists.
+- **Webhooks:**
+  - Slack messages escape agent-supplied text, so an agent can't @-mention your channel.
+  - JSON webhooks are signed with HMAC-SHA256 in `X-Tether-Signature`.
+
 ## Policies
 
 Access is **deny by default**, and the **last matching rule wins**, so you can grant broadly and then carve out exceptions:
@@ -221,7 +255,7 @@ Each of these refusals also **flags** the workspace, because they look like an a
 ## Merge safety
 
 - **No self-approval.** The reviewer must be a different identity from the agent.
-- **Conflict detection.** If someone edited a file on disk after the fork and the agent also changed it, the merge is refused and lists the paths. Edits that don't overlap merge cleanly.
+- **Line-level merging.** If someone edited a text file on disk after the fork and the agent also changed it, edits to different parts of the file are merged line by line, the way git does. Overlapping edits, binary files and edit-versus-delete are refused as conflicts, with the paths listed. Edits to different files always merge.
 - **Out-of-band edits are preserved.** The directory is snapshotted before every fork, merge, and rollback, so direct human edits become versions and are never silently overwritten.
 - **No writing through symlinks.** A merge will not follow a symlink out of the tracked directory.
 
@@ -269,15 +303,12 @@ company-drive/                 the real files (agents never touch these directly
 
 - **The sandbox is the API, not the OS.** In-process use, MCP over stdio and the CLI run with your own filesystem permissions. Hard isolation needs the HTTP API with agents running as a different user or in a container, as described under deployment notes.
 - **No mounted drive.** There's no FUSE mount or WebDAV yet; agents use the API or the CLI.
-- **One reviewer, one machine.** The review app has no logins or roles yet; it acts as whoever started it.
-- **No TLS in the built-in servers.** Put a reverse proxy in front of `agent-api` before exposing it beyond localhost.
+- **Sessions live in memory.** Restarting the review app signs everyone out, and it runs as a single process.
 - **Single-machine storage.** Concurrency comes from `flock`, and storage is a local directory instead of S3 or Postgres.
 - **Regex secret scanning.** It will miss some credentials and flag some false positives.
-- **Simple merge model.** Conflicts are detected per file, with no line-level three-way merge.
+- **Whole files in memory.** Reads and writes hold a file in memory, and the agent API caps bodies at 64 MB by default. It isn't built for multi-GB media yet.
+- **No SSO.** Accounts are local to each tether install. See the [roadmap](docs/ROADMAP.md).
 
-## Interview questions this prototype should help answer
+## Customer discovery
 
-- What would you need to see before letting an agent edit real company files?
-- When an agent did something wrong, how did you find out, and how long did it take to undo?
-- Who should approve agent changes: a person, a policy, or nobody below some risk level?
-- Would you run this as a library in your agent harness, a hosted API, or a mounted drive?
+The interview script is in [docs/INTERVIEWS.md](docs/INTERVIEWS.md), and the five-minute demo is in [docs/DEMO.md](docs/DEMO.md).

@@ -20,4 +20,4 @@ __all__ = [
     "InvalidPath", "MergeBlocked", "MergeConflict", "NotARepo", "Policy", "Repo", "Rule",
     "TetherError", "VerifyResult", "Workspace",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

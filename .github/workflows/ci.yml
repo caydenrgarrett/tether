@@ -38,3 +38,26 @@ jobs:
           tether submit "$WS" --note "ci" | grep -q "merged"
           test -f out/summary.md
           tether verify
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t tether:ci .
+      - name: Isolated agent end to end
+        run: |
+          printf 'TETHER_ADMIN_USER=admin\nTETHER_ADMIN_PASSWORD=ci-password-long-enough\n' > .env
+          docker compose up -d tether agent-api
+          sleep 3
+          docker compose exec -T tether sh -c 'mkdir -p /data/drive/docs && echo hi > /data/drive/docs/a.txt'
+          WS=$(docker compose exec -T tether tether create --agent agent:ci --read 'docs/**' --write 'out/**')
+          TOKEN=$(docker compose exec -T tether tether token "$WS")
+          TETHER_TOKEN=$TOKEN docker compose --profile agent run --rm -T agent | tee agent.log
+          grep -q awaiting_review agent.log
+          docker compose --profile agent run --rm -T --entrypoint sh agent -c 'test ! -e /data && test ! -e /keys'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: localhost:8700' http://127.0.0.1:8700/api/workspaces)" = 401
+          docker compose exec -T tether tether verify
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs

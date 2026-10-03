@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from difflib import SequenceMatcher
 
+MAX_LINES = 20000  # beyond this, treat as a conflict rather than risk a very slow diff
+
 
 def _changes(base: list[str], other: list[str]) -> list[tuple[int, int, tuple[str, ...]]]:
     sm = SequenceMatcher(None, base, other, autojunk=False)
@@ -41,5 +43,8 @@ def merge_text(base: bytes, ours: bytes, theirs: bytes) -> bytes | None:
         texts = [x.decode("utf-8") for x in (base, ours, theirs)]
     except UnicodeDecodeError:
         return None
-    merged = merge_lines(*(t.splitlines(keepends=True) for t in texts))
+    lines = [t.splitlines(keepends=True) for t in texts]
+    if any(len(x) > MAX_LINES for x in lines):
+        return None
+    merged = merge_lines(*lines)
     return None if merged is None else "".join(merged).encode("utf-8")

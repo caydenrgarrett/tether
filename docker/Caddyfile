@@ -1,0 +1,6 @@
+# Example HTTPS front for the review app. Caddy gets a certificate automatically.
+# Run tether with:  tether serve --host 0.0.0.0 --allowed-host review.example.com --secure-cookies
+review.example.com {
+	reverse_proxy tether:8700
+	header -Server
+}

@@ -117,6 +117,9 @@ class Sessions:
         return False
 
     def fail(self, *keys: str) -> None:
+        if len(self._failures) > 10000:  # bound memory under username spraying
+            cutoff = time.time() - LOCKOUT_WINDOW
+            self._failures = {k: v for k, v in self._failures.items() if v and v[-1] > cutoff}
         for k in keys:
             self._failures.setdefault(k, []).append(time.time())
 

@@ -1,0 +1,57 @@
+# Isolated deployment:
+#   tether     review app (https via a proxy in production) on localhost:8700
+#   agent-api  token-authenticated API, reachable only on the internal "agents" network
+#   agent      example agent container: gets a URL and a token, never the files
+#
+#   cp .env.example .env   # set an admin password
+#   docker compose up -d tether agent-api
+#   docker compose exec tether tether create --agent agent:demo --read 'docs/**' --write 'out/**'
+#   docker compose exec tether tether token ws_...
+#   TETHER_TOKEN=tth_... docker compose run --rm agent
+services:
+  tether:
+    build: .
+    image: tether:latest
+    env_file: .env
+    ports:
+      - "127.0.0.1:8700:8700"
+    volumes:
+      - drive:/data
+      - keys:/keys
+    networks: [frontend]
+    restart: unless-stopped
+
+  agent-api:
+    image: tether:latest
+    command: ["agent-api", "--host", "0.0.0.0", "--port", "8701"]
+    depends_on: [tether]
+    volumes:
+      - drive:/data
+      - keys:/keys
+    networks: [agents]
+    restart: unless-stopped
+
+  agent:
+    profiles: ["agent"]
+    image: python:3.12-slim
+    working_dir: /agent
+    command: ["python", "/src/examples/remote_agent.py"]
+    environment:
+      TETHER_URL: http://agent-api:8701
+      TETHER_TOKEN: ${TETHER_TOKEN:-}
+    volumes:
+      - ./tether:/src/tether:ro            # only the client code; no drive, no keys
+      - ./examples:/src/examples:ro
+    networks: [agents]
+    read_only: true
+    tmpfs: ["/tmp"]
+    user: "10002:10002"
+
+volumes:
+  drive:
+  keys:
+
+networks:
+  frontend:
+  agents:
+    internal: true   # no internet egress for agents
